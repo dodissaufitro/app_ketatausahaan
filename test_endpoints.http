@@ -1,0 +1,11 @@
+### Test Endpoint Debug User
+GET http://localhost/app_ketatausahaan/api/debug-user
+
+### Test Endpoint User Biasa
+GET http://localhost/app_ketatausahaan/api/user
+
+### Test Incoming Mails
+GET http://localhost/app_ketatausahaan/api/incoming-mails
+
+### Test Outgoing Mails  
+GET http://localhost/app_ketatausahaan/api/outgoing-mails

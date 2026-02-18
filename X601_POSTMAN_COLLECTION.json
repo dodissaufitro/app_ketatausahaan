@@ -1,0 +1,147 @@
+{
+  "info": {
+    "name": "X601 Attendance Integration API",
+    "description": "Testing collection untuk X601 Attendance Integration",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Sync Attendance from X601",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/attendances/sync-x601/manual",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "attendances", "sync-x601", "manual"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"date\": \"2025-01-15\",\n  \"employee_id\": \"\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Fetch X601 Data (Preview)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/attendances/fetch-x601/preview?date=2025-01-15&employee_id=",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "attendances", "fetch-x601", "preview"],
+          "query": [
+            {
+              "key": "date",
+              "value": "2025-01-15"
+            },
+            {
+              "key": "employee_id",
+              "value": ""
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get All Attendances",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/attendances?date=2025-01-15&status=all",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "attendances"],
+          "query": [
+            {
+              "key": "date",
+              "value": "2025-01-15"
+            },
+            {
+              "key": "status",
+              "value": "all"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Sync Specific Employee",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/attendances/sync-x601/manual",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "attendances", "sync-x601", "manual"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"employee_id\": \"E001\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Sync Specific Date",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/attendances/sync-x601/manual",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "attendances", "sync-x601", "manual"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"date\": \"2025-01-15\"\n}"
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ]
+}
