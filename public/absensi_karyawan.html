@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Absensi Karyawan - Mesin X601</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-color: #0d6efd;
+            --success-color: #198754;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --info-color: #0dcaf0;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px 0;
+        }
+
+        .header-section {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.95), rgba(118, 75, 162, 0.95));
+            color: white;
+            padding: 40px 0;
+            margin-bottom: 30px;
+            border-radius: 0 0 20px 20px;
+        }
+
+        .header-section h1 {
+            font-weight: 700;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header-section .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .card {
+            border: none;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .filter-card {
+            background: white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .filter-card .form-label {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+
+        .filter-card .form-control {
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 10px 12px;
+            transition: all 0.3s ease;
+        }
+
+        .filter-card .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.1);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #0a58ca 100%);
+            border: none;
+            font-weight: 600;
+            padding: 10px 24px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(13, 110, 253, 0.3);
+            background: linear-gradient(135deg, #0a58ca 0%, #0d6efd 100%);
+        }
+
+        /* Stats Cards */
+        .stat-card {
+            border: none;
+            border-radius: 12px;
+            overflow: hidden;
+            color: white;
+            padding: 0;
+            margin-bottom: 20px;
+        }
+
+        .stat-card .card-body {
+            padding: 25px;
+        }
+
+        .stat-card .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 10px 0;
+        }
+
+        .stat-card .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-bottom: 0;
+        }
+
+        .stat-card .stat-icon {
+            font-size: 3rem;
+            opacity: 0.15;
+            margin-left: auto;
+        }
+
+        .stat-card.success-card {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+
+        .stat-card.danger-card {
+            background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+        }
+
+        .stat-card.warning-card {
+            background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+        }
+
+        .stat-card.info-card {
+            background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%);
+        }
+
+        /* Table Styles */
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .table-header {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 20px;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .table-header h5 {
+            font-weight: 600;
+            color: #495057;
+            margin: 0;
+        }
+
+        .table-header .badge {
+            font-size: 0.85rem;
+            padding: 6px 10px;
+        }
+
+        .table {
+            margin: 0;
+        }
+
+        .table thead th {
+            background: #f8f9fa;
+            font-weight: 600;
+            border-bottom: 2px solid #dee2e6;
+            color: #495057;
+            padding: 15px;
+            font-size: 0.95rem;
+        }
+
+        .table tbody td {
+            padding: 15px;
+            vertical-align: middle;
+            color: #212529;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .table tbody tr:hover {
+            background-color: rgba(102, 126, 234, 0.05);
+        }
+
+        .table .pin-badge {
+            background: #f0f2f5;
+            color: #495057;
+            font-weight: 600;
+            padding: 6px 10px;
+            border-radius: 6px;
+        }
+
+        .table .employee-name {
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .table .time-badge {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .table .time-in {
+            background: rgba(40, 167, 69, 0.1);
+            color: var(--success-color);
+        }
+
+        .table .time-out {
+            background: rgba(220, 53, 69, 0.1);
+            color: var(--danger-color);
+        }
+
+        .table .work-hours {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .status-badge {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-tepat {
+            background: rgba(40, 167, 69, 0.1);
+            color: var(--success-color);
+        }
+
+        .status-terlambat {
+            background: rgba(220, 53, 69, 0.1);
+            color: var(--danger-color);
+        }
+
+        .status-pulang-cepat {
+            background: rgba(255, 193, 7, 0.1);
+            color: #333;
+        }
+
+        .status-telat-pulang {
+            background: rgba(108, 117, 125, 0.1);
+            color: #495057;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .alert-error {
+            background: rgba(220, 53, 69, 0.1);
+            border: 2px solid var(--danger-color);
+            color: var(--danger-color);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 20px;
+        }
+
+        .alert-error i {
+            margin-right: 8px;
+        }
+
+        .container-custom {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 15px;
+        }
+
+        @media (max-width: 768px) {
+            .header-section h1 {
+                font-size: 1.8rem;
+            }
+
+            .stat-value {
+                font-size: 2rem !important;
+            }
+
+            .table {
+                font-size: 0.85rem;
+            }
+
+            .table thead th,
+            .table tbody td {
+                padding: 10px 5px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <div class="header-section">
+        <div class="container-custom">
+            <div class="d-flex align-items-center gap-3">
+                <div>
+                    <h1><i class="bi bi-clock-history"></i> Absensi Karyawan</h1>
+                    <p class="subtitle mb-0">Dashboard Sinkronisasi Mesin X601</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container-custom">
+        <!-- Filter Form -->
+        <div class="filter-card card">
+            <div class="card-body p-4">
+                <h6 class="mb-4"><i class="bi bi-funnel"></i> Filter Data</h6>
+                <form method="GET" class="row g-3">
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label">
+                            <i class="bi bi-router"></i> IP Address
+                        </label>
+                        <input type="text" name="ip" class="form-control" placeholder="10.1.7.28" value="<?= isset($_GET['ip']) ? $_GET['ip'] : '10.1.7.28' ?>">
+                    </div>
+
+                    <div class="col-lg-2 col-md-6">
+                        <label class="form-label">
+                            <i class="bi bi-key"></i> Comm Key
+                        </label>
+                        <input type="text" name="key" class="form-control" placeholder="0" value="<?= isset($_GET['key']) ? $_GET['key'] : '0' ?>">
+                    </div>
+
+                    <div class="col-lg-2 col-md-6">
+                        <label class="form-label">
+                            <i class="bi bi-calendar"></i> Dari Tanggal
+                        </label>
+                        <input type="date" name="tgl_awal" class="form-control" value="<?= isset($_GET['tgl_awal']) ? $_GET['tgl_awal'] : '' ?>">
+                    </div>
+
+                    <div class="col-lg-2 col-md-6">
+                        <label class="form-label">
+                            <i class="bi bi-calendar"></i> Hingga Tanggal
+                        </label>
+                        <input type="date" name="tgl_akhir" class="form-control" value="<?= isset($_GET['tgl_akhir']) ? $_GET['tgl_akhir'] : '' ?>">
+                    </div>
+
+                    <div class="col-lg-3 col-md-12 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-search"></i> Cari Data
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <?php if (isset($_GET["ip"])): ?>
+
+            <?php
+            $IP = $_GET["ip"] ?? "10.1.7.28";
+            $Key = $_GET["key"] ?? "0";
+            $tgl_awal  = $_GET["tgl_awal"] ?? "";
+            $tgl_akhir = $_GET["tgl_akhir"] ?? "";
+
+            // =========================
+            // FUNCTION AMBIL USER
+            // =========================
+            function getUserData($IP, $Key)
+            {
+                $user = [];
+
+                $Connect = @fsockopen($IP, "80", $errno, $errstr, 10);
+
+                if ($Connect) {
+
+                    $soap_request = '<?xml version="1.0"?>'
+                        . '<GetUserInfo>'
+                        . '<ArgComKey>' . $Key . '</ArgComKey>'
+                        . '<Arg></Arg>'
+                        . '</GetUserInfo>';
+
+                    $newLine = "\r\n";
+
+                    fputs($Connect, "POST /iWsService HTTP/1.0" . $newLine);
+                    fputs($Connect, "Content-Type: text/xml" . $newLine);
+                    fputs($Connect, "Content-Length: " . strlen($soap_request) . $newLine . $newLine);
+                    fputs($Connect, $soap_request . $newLine);
+
+                    $buffer = "";
+                    while (!feof($Connect)) {
+                        $buffer .= fgets($Connect, 1024);
+                    }
+
+                    fclose($Connect);
+
+                    preg_match_all('/<Row[^>]*>(.*?)<\/Row>/s', $buffer, $rows);
+
+                    if (!empty($rows[1])) {
+                        foreach ($rows[1] as $row) {
+                            preg_match('/<PIN>(.*?)<\/PIN>/', $row, $pin);
+                            preg_match('/<Name>(.*?)<\/Name>/', $row, $name);
+
+                            $PIN  = trim($pin[1] ?? '');
+                            $Name = trim($name[1] ?? '');
+
+                            if ($PIN != '') {
+                                $user[$PIN] = $Name ?: 'Tanpa Nama';
+                            }
+                        }
+                    }
+                }
+
+                return $user;
+            }
+
+            $users = getUserData($IP, $Key);
+
+            $buffer = "";
+            $Connect = @fsockopen($IP, "80", $errno, $errstr, 20);
+
+            if ($Connect) {
+
+                $soap_request = '<?xml version="1.0"?>'
+                    . '<GetAttLog>'
+                    . '<ArgComKey>' . $Key . '</ArgComKey>'
+                    . '<Arg></Arg>'
+                    . '</GetAttLog>';
+
+                $newLine = "\r\n";
+
+                fputs($Connect, "POST /iWsService HTTP/1.0" . $newLine);
+                fputs($Connect, "Content-Type: text/xml" . $newLine);
+                fputs($Connect, "Content-Length: " . strlen($soap_request) . $newLine . $newLine);
+                fputs($Connect, $soap_request . $newLine);
+
+                while (!feof($Connect)) {
+                    $buffer .= fgets($Connect, 1024);
+                }
+
+                fclose($Connect);
+
+                preg_match_all('/<Row[^>]*>(.*?)<\/Row>/s', $buffer, $rows);
+
+                $logs = [];
+
+                if (!empty($rows[1])) {
+
+                    foreach ($rows[1] as $row) {
+
+                        preg_match('/<PIN>(.*?)<\/PIN>/', $row, $pin);
+                        preg_match('/<DateTime>(.*?)<\/DateTime>/', $row, $time);
+
+                        $PIN = $pin[1] ?? '';
+                        $DateTime = $time[1] ?? '';
+
+                        if (empty($PIN) || empty($DateTime)) continue;
+
+                        $tanggal = date('Y-m-d', strtotime($DateTime));
+                        $jam     = date('H:i:s', strtotime($DateTime));
+
+                        // FILTER
+                        if (!empty($tgl_awal) && !empty($tgl_akhir)) {
+                            if ($tanggal < $tgl_awal || $tanggal > $tgl_akhir) continue;
+                        }
+
+                        $logs[$PIN][$tanggal][] = $jam;
+                    }
+
+                    $final_logs = [];
+
+                    if (!empty($logs)) {
+                        foreach ($logs as $pin => $dates) {
+                            foreach ($dates as $tgl => $jam_list) {
+
+                                sort($jam_list);
+
+                                $checkin  = $jam_list[0];
+                                $checkout = end($jam_list);
+
+                                // =========================
+                                // JAM KERJA RESMI
+                                // =========================
+                                $jam_masuk  = "07:30:00";
+                                $jam_pulang = "16:30:00";
+
+                                $real_masuk  = max($checkin, $jam_masuk);
+                                $real_pulang = min($checkout, $jam_pulang);
+
+                                $durasi = strtotime($real_pulang) - strtotime($real_masuk);
+                                if ($durasi < 0) $durasi = 0;
+
+                                $jam_kerja = gmdate("H:i:s", $durasi);
+
+                                // STATUS
+                                $status = "Tepat Waktu";
+                                $status_class = "status-tepat";
+
+                                if ($checkin > $jam_masuk) {
+                                    $status = "Terlambat";
+                                    $status_class = "status-terlambat";
+                                }
+
+                                if ($checkout < $jam_pulang) {
+                                    $status = "Pulang Cepat";
+                                    $status_class = "status-pulang-cepat";
+                                }
+
+                                if ($checkin > $jam_masuk && $checkout < $jam_pulang) {
+                                    $status = "Telat & Pulang Cepat";
+                                    $status_class = "status-telat-pulang";
+                                }
+
+                                $nama = $users[$pin] ?? 'Tidak Diketahui';
+
+                                $final_logs[] = [
+                                    'pin' => $pin,
+                                    'nama' => $nama,
+                                    'tanggal' => $tgl,
+                                    'checkin' => $checkin,
+                                    'checkout' => $checkout,
+                                    'jam_kerja' => $jam_kerja,
+                                    'status' => $status,
+                                    'status_class' => $status_class,
+                                ];
+                            }
+                        }
+                    }
+
+                    if (!empty($final_logs)):
+                        // Calculate stats
+                        $stat_total = count($final_logs);
+                        $stat_terlambat = count(array_filter($final_logs, fn($r) => strpos($r['status'], 'Terlambat') !== false));
+                        $stat_pulang_cepat = count(array_filter($final_logs, fn($r) => $r['status'] === 'Pulang Cepat'));
+                        $stat_tepat = count(array_filter($final_logs, fn($r) => $r['status'] === 'Tepat Waktu'));
+                        ?>
+
+                        <!-- Stats Cards -->
+                        <div class="row mb-4">
+                            <div class="col-lg-3 col-md-6">
+                                <div class="card stat-card success-card">
+                                    <div class="card-body d-flex align-items-start">
+                                        <div class="flex-grow-1">
+                                            <p class="stat-label">Total Kehadiran</p>
+                                            <div class="stat-value"><?= $stat_total ?></div>
+                                        </div>
+                                        <i class="bi bi-check-circle stat-icon"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-lg-3 col-md-6">
+                                <div class="card stat-card danger-card">
+                                    <div class="card-body d-flex align-items-start">
+                                        <div class="flex-grow-1">
+                                            <p class="stat-label">Terlambat</p>
+                                            <div class="stat-value"><?= $stat_terlambat ?></div>
+                                        </div>
+                                        <i class="bi bi-exclamation-circle stat-icon"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-lg-3 col-md-6">
+                                <div class="card stat-card warning-card">
+                                    <div class="card-body d-flex align-items-start">
+                                        <div class="flex-grow-1">
+                                            <p class="stat-label">Pulang Cepat</p>
+                                            <div class="stat-value"><?= $stat_pulang_cepat ?></div>
+                                        </div>
+                                        <i class="bi bi-clock-history stat-icon"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-lg-3 col-md-6">
+                                <div class="card stat-card info-card">
+                                    <div class="card-body d-flex align-items-start">
+                                        <div class="flex-grow-1">
+                                            <p class="stat-label">Tepat Waktu</p>
+                                            <div class="stat-value"><?= $stat_tepat ?></div>
+                                        </div>
+                                        <i class="bi bi-star stat-icon"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Data Table -->
+                        <div class="table-container mb-4">
+                            <div class="table-header">
+                                <h5><i class="bi bi-table"></i> Data Absensi Karyawan <span class="badge bg-primary"><?= count($final_logs) ?> Records</span></h5>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th><i class="bi bi-person-badge"></i> User ID</th>
+                                            <th><i class="bi bi-person"></i> Nama Karyawan</th>
+                                            <th><i class="bi bi-calendar2"></i> Tanggal</th>
+                                            <th><i class="bi bi-arrow-down-circle"></i> Check In</th>
+                                            <th><i class="bi bi-arrow-up-circle"></i> Check Out</th>
+                                            <th><i class="bi bi-hourglass-split"></i> Jam Kerja</th>
+                                            <th><i class="bi bi-badge-check"></i> Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($final_logs as $log): ?>
+                                            <tr>
+                                                <td><span class="pin-badge"><?= $log['pin'] ?></span></td>
+                                                <td><span class="employee-name"><?= $log['nama'] ?></span></td>
+                                                <td><?= $log['tanggal'] ?></td>
+                                                <td><span class="time-badge time-in"><i class="bi bi-arrow-down-circle"></i> <?= $log['checkin'] ?></span></td>
+                                                <td><span class="time-badge time-out"><i class="bi bi-arrow-up-circle"></i> <?= $log['checkout'] ?></span></td>
+                                                <td><span class="work-hours"><?= $log['jam_kerja'] ?></span></td>
+                                                <td><span class="status-badge <?= $log['status_class'] ?>"><i class="bi bi-circle-fill"></i> <?= $log['status'] ?></span></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    <?php else: ?>
+                        <div class="table-container">
+                            <div class="empty-state">
+                                <i class="bi bi-inbox"></i>
+                                <p>Tidak ada data absensi untuk periode yang dipilih</p>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                <?php else: ?>
+                    <div class="table-container">
+                        <div class="empty-state">
+                            <i class="bi bi-search"></i>
+                            <p>Masukkan parameter pencarian untuk melihat data absensi</p>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+            <?php else: ?>
+                <div class="alert-error">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Koneksi Gagal:</strong> Tidak dapat terhubung ke mesin absensi. Periksa IP address dan Comm Key.
+                </div>
+            <?php endif; ?>
+
+        <?php endif; ?>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

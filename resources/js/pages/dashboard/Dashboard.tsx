@@ -26,6 +26,40 @@ import {
   Bar,
 } from 'recharts';
 
+// 3D Card Component with hover effects
+const Card3D = ({ children, className = '', delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) => {
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+    const y = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+    setMousePosition({ x, y });
+  };
+
+  return (
+    <div
+      className={`transition-all duration-500 ${className}`}
+      style={{
+        transform: isHovered
+          ? `perspective(1000px) rotateY(${mousePosition.x * 3}deg) rotateX(${-mousePosition.y * 3}deg) translateZ(20px) scale(1.02)`
+          : 'perspective(1000px) rotateY(0deg) rotateX(0deg) translateZ(0px) scale(1)',
+        transformStyle: 'preserve-3d',
+        animation: `fadeInUp 0.6s ease-out ${delay}s both`,
+      }}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setMousePosition({ x: 0, y: 0 });
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
 interface DashboardData {
   stats: {
     totalEmployees: number;
@@ -80,16 +114,23 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={{ perspective: '2000px' }}>
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div 
+        className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 rounded-xl bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 backdrop-blur-sm"
+        style={{
+          transform: 'translateZ(10px)',
+          animation: 'fadeInDown 0.8s ease-out',
+          boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.1)',
+        }}
+      >
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+         
           <p className="text-muted-foreground">
             Selamat datang! Berikut ringkasan data hari ini.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground px-4 py-2 rounded-lg bg-card/50 backdrop-blur-sm">
           <Clock className="h-4 w-4" />
           <span>{new Date().toLocaleDateString('id-ID', { 
             weekday: 'long', 
@@ -167,178 +208,213 @@ export default function Dashboard() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Attendance Chart */}
-        <Card className="shadow-md">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-semibold">Kehadiran Mingguan</CardTitle>
-            <Badge variant="secondary" className="font-normal">
-              <TrendingUp className="h-3 w-3 mr-1" />
-              +5.2%
-            </Badge>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.attendanceData}>
-                  <defs>
-                    <linearGradient id="colorHadir" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(217, 91%, 45%)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(217, 91%, 45%)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="name" className="text-xs" />
-                  <YAxis className="text-xs" />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="hadir"
-                    stroke="hsl(217, 91%, 45%)"
-                    fillOpacity={1}
-                    fill="url(#colorHadir)"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+        <Card3D delay={0.2}>
+          <Card className="shadow-2xl border-2 border-primary/20 hover:border-primary/40 transition-all duration-300 bg-gradient-to-br from-card to-card/80">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                  📊
+                </div>
+                Kehadiran Mingguan
+              </CardTitle>
+              <Badge variant="secondary" className="font-normal shadow-lg">
+                <TrendingUp className="h-3 w-3 mr-1" />
+                +5.2%
+              </Badge>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={data.attendanceData}>
+                    <defs>
+                      <linearGradient id="colorHadir" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(217, 91%, 45%)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(217, 91%, 45%)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="name" className="text-xs" />
+                    <YAxis className="text-xs" />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="hadir"
+                      stroke="hsl(217, 91%, 45%)"
+                      fillOpacity={1}
+                      fill="url(#colorHadir)"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </Card3D>
 
         {/* Department Distribution */}
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Distribusi per Departemen</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.departmentData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis type="number" className="text-xs" />
-                  <YAxis dataKey="name" type="category" className="text-xs" width={80} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                    }}
-                  />
-                  <Bar dataKey="count" fill="hsl(174, 72%, 40%)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+        <Card3D delay={0.3}>
+          <Card className="shadow-2xl border-2 border-success/20 hover:border-success/40 transition-all duration-300 bg-gradient-to-br from-card to-card/80">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-success/20 flex items-center justify-center">
+                  📈
+                </div>
+                Distribusi per Departemen
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data.departmentData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis type="number" className="text-xs" />
+                    <YAxis dataKey="name" type="category" className="text-xs" width={80} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Bar dataKey="count" fill="hsl(174, 72%, 40%)" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </Card3D>
       </div>
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pending Leave Requests */}
-        <Card className="shadow-md">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-semibold">Pengajuan Cuti Pending</CardTitle>
-            <Badge variant="secondary">{data.pendingLeaves.length} pending</Badge>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {data.pendingLeaves.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">
-                  Tidak ada pengajuan cuti pending
-                </p>
-              ) : (
-                data.pendingLeaves.map((leave) => (
-                  <div
-                    key={leave.id}
-                    className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback className="bg-primary/10 text-primary">
-                          {leave.employeeName.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium text-sm">{leave.employeeName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {leave.startDate} - {leave.endDate}
-                        </p>
+        <Card3D delay={0.4}>
+          <Card className="shadow-2xl border-2 border-warning/20 hover:border-warning/40 transition-all duration-300 bg-gradient-to-br from-card to-card/80">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-warning/20 flex items-center justify-center">
+                  📋
+                </div>
+                Pengajuan Cuti Pending
+              </CardTitle>
+              <Badge variant="secondary" className="shadow-lg">{data.pendingLeaves.length} pending</Badge>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {data.pendingLeaves.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    Tidak ada pengajuan cuti pending
+                  </p>
+                ) : (
+                  data.pendingLeaves.map((leave, index) => (
+                    <div
+                      key={leave.id}
+                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-all duration-300 hover:shadow-lg hover:scale-[1.02] transform"
+                      style={{
+                        animation: `slideInLeft 0.5s ease-out ${index * 0.1}s both`,
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10 shadow-md">
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            {leave.employeeName.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium text-sm">{leave.employeeName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {leave.startDate} - {leave.endDate}
+                          </p>
+                        </div>
                       </div>
+                      <Badge variant="outline" className="capitalize">
+                        {leave.type}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="capitalize">
-                      {leave.type}
-                    </Badge>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </Card3D>
 
         {/* Recent Activity */}
-        <Card className="shadow-md">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-semibold">Aktivitas Terbaru</CardTitle>
-            <button className="text-sm text-primary hover:underline flex items-center gap-1">
-              Lihat semua <ArrowUpRight className="h-3 w-3" />
-            </button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {data.recentAttendance.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">
-                  Belum ada data kehadiran hari ini
-                </p>
-              ) : (
-                data.recentAttendance.map((record) => (
-                <div
-                  key={record.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className="bg-accent/10 text-accent">
-                        {record.employeeName.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium text-sm">{record.employeeName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Check-in: {record.checkIn}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge
-                    variant={
-                      record.status === 'present'
-                        ? 'default'
-                        : record.status === 'late'
-                        ? 'secondary'
-                        : 'destructive'
-                    }
-                    className={
-                      record.status === 'present'
-                        ? 'bg-success/10 text-success hover:bg-success/20'
-                        : record.status === 'late'
-                        ? 'bg-warning/10 text-warning hover:bg-warning/20'
-                        : ''
-                    }
-                  >
-                    {record.status === 'present'
-                      ? 'Hadir'
-                      : record.status === 'late'
-                      ? 'Terlambat'
-                      : 'Absen'}
-                  </Badge>
+        <Card3D delay={0.5}>
+          <Card className="shadow-2xl border-2 border-info/20 hover:border-info/40 transition-all duration-300 bg-gradient-to-br from-card to-card/80">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-info/20 flex items-center justify-center">
+                  ⚡
                 </div>
-              )))}
-            </div>
-          </CardContent>
-        </Card>
+                Aktivitas Terbaru
+              </CardTitle>
+              <button className="text-sm text-primary hover:underline flex items-center gap-1 transition-transform hover:scale-110">
+                Lihat semua <ArrowUpRight className="h-3 w-3" />
+              </button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {data.recentAttendance.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    Belum ada data kehadiran hari ini
+                  </p>
+                ) : (
+                  data.recentAttendance.map((record, index) => (
+                    <div
+                      key={record.id}
+                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-all duration-300 hover:shadow-lg hover:scale-[1.02] transform"
+                      style={{
+                        animation: `slideInRight 0.5s ease-out ${index * 0.1}s both`,
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10 shadow-md">
+                          <AvatarFallback className="bg-accent/10 text-accent">
+                            {record.employeeName.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium text-sm">{record.employeeName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Check-in: {record.checkIn}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge
+                        variant={
+                          record.status === 'present'
+                            ? 'default'
+                            : record.status === 'late'
+                            ? 'secondary'
+                            : 'destructive'
+                        }
+                        className={
+                          record.status === 'present'
+                            ? 'bg-success/10 text-success hover:bg-success/20'
+                            : record.status === 'late'
+                            ? 'bg-warning/10 text-warning hover:bg-warning/20'
+                            : ''
+                        }
+                      >
+                        {record.status === 'present'
+                          ? 'Hadir'
+                          : record.status === 'late'
+                          ? 'Terlambat'
+                          : 'Absen'}
+                      </Badge>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </Card3D>
       </div>
     </div>
   );

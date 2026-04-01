@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Models\UserRole;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
@@ -67,7 +67,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8',
-            'role' => ['required', Rule::in(['superadmin', 'admin', 'user'])],
+            'role' => ['required', Rule::in(['superadmin', 'admin', 'user', 'employee'])],
             'user_role_id' => 'nullable|exists:user_roles,id',
             'is_active' => 'boolean',
         ]);
@@ -113,7 +113,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
             'password' => 'nullable|string|min:8',
-            'role' => ['required', Rule::in(['superadmin', 'admin', 'user'])],
+            'role' => ['required', Rule::in(['superadmin', 'admin', 'user', 'employee'])],
             'user_role_id' => 'nullable|exists:user_roles,id',
             'is_active' => 'boolean',
         ]);
@@ -140,7 +140,7 @@ class UserController extends Controller
         $user = User::findOrFail($id);
 
         // Prevent deleting own account
-        if ($user->id === auth()->id()) {
+        if ($user->id === Auth::id()) {
             return response()->json([
                 'message' => 'You cannot delete your own account',
             ], 403);
@@ -161,7 +161,7 @@ class UserController extends Controller
         $user = User::findOrFail($id);
 
         // Prevent deactivating own account
-        if ($user->id === auth()->id()) {
+        if ($user->id === Auth::id()) {
             return response()->json([
                 'message' => 'You cannot deactivate your own account',
             ], 403);

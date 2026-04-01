@@ -14,8 +14,7 @@ class SyncX601Attendance extends Command
      */
     protected $signature = 'attendance:sync-x601 
                             {--date= : Filter by specific date (Y-m-d format)}
-                            {--employee-id= : Filter by employee ID}
-                            {--verbose : Show detailed output}';
+                            {--employee-id= : Filter by employee ID}';
 
     /**
      * The console command description.
@@ -34,7 +33,6 @@ class SyncX601Attendance extends Command
 
         $date = $this->option('date');
         $employeeId = $this->option('employee-id');
-        $verbose = $this->option('verbose');
 
         if ($date && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
             $this->error('Invalid date format. Please use Y-m-d format (e.g., 2025-01-15)');
@@ -63,11 +61,9 @@ class SyncX601Attendance extends Command
             if (!empty($result['errors'])) {
                 $this->error("✗ Errors encountered: " . count($result['errors']) . " records");
 
-                if ($verbose) {
-                    $this->line("\nError Details:");
-                    foreach ($result['errors'] as $error) {
-                        $this->line("  • <fg=red>$error</>");
-                    }
+                $this->line("\nError Details:");
+                foreach ($result['errors'] as $error) {
+                    $this->line("  • <fg=red>$error</>");
                 }
             } else {
                 $this->info("✓ No errors encountered");

@@ -110,7 +110,12 @@ Route::prefix('api')->group(function () {
             Route::put('/attendances/{attendance}', [AttendanceController::class, 'update']);
             Route::delete('/attendances/{attendance}', [AttendanceController::class, 'destroy']);
             Route::post('/attendances/sync-x601/manual', [AttendanceController::class, 'syncFromX601']);
+            Route::post('/attendances/sync-x601/comprehensive', [AttendanceController::class, 'comprehensiveSyncFromX601']);
             Route::get('/attendances/fetch-x601/preview', [AttendanceController::class, 'fetchFromX601']);
+            Route::get('/attendances/connect-x601', [AttendanceController::class, 'connectX601']);
+            Route::get('/x601-dashboard', [AttendanceController::class, 'x601Dashboard']);
+            Route::get('/attendances/monthly-summary', [AttendanceController::class, 'monthlySummary']);
+            Route::get('/attendances/export-monthly', [AttendanceController::class, 'exportMonthly']);
         });
 
         // Leave Routes - allow manage_leaves, view_own_leave, submit_leave_request permissions

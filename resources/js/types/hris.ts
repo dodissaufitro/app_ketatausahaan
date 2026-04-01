@@ -16,7 +16,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'superadmin' | 'admin' | 'user';
+  role: 'superadmin' | 'admin' | 'user' | 'employee';
   userRoleId?: string;
   userRoleName?: string;
   permissions: string[];
@@ -48,6 +48,7 @@ export interface Attendance {
   checkOut: string;
   status: 'present' | 'late' | 'absent' | 'half-day';
   workHours: number;
+  source: 'manual' | 'x601';
 }
 
 export interface LeaveRequest {

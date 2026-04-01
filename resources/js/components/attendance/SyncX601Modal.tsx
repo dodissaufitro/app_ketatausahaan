@@ -29,6 +29,9 @@ export function SyncX601Modal({ isOpen, onClose, onSuccess }: SyncX601ModalProps
   const [loading, setLoading] = useState(false);
   const [syncDate, setSyncDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [employeeId, setEmployeeId] = useState<string>('');
+  const [ip, setIp] = useState<string>('10.1.7.28');
+  const [key, setKey] = useState<string>('0');
+  const [port, setPort] = useState<number>(80);
   const [result, setResult] = useState<SyncResult | null>(null);
   const { toast } = useToast();
 
@@ -40,6 +43,9 @@ export function SyncX601Modal({ isOpen, onClose, onSuccess }: SyncX601ModalProps
       const response = await axios.post('/api/attendances/sync-x601/manual', {
         date: syncDate || null,
         employee_id: employeeId || null,
+        ip: ip || '10.1.7.28',
+        key: key || '0',
+        port: port || 80,
       });
 
       const data = response.data;
@@ -109,6 +115,34 @@ export function SyncX601Modal({ isOpen, onClose, onSuccess }: SyncX601ModalProps
                   onChange={(e) => setEmployeeId(e.target.value)}
                   className="mt-1"
                 />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-sm font-medium">IP Mesin</label>
+                  <Input
+                    value={ip}
+                    onChange={(e) => setIp(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Port</label>
+                  <Input
+                    type="number"
+                    value={port}
+                    onChange={(e) => setPort(Number(e.target.value) || 80)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">API Key</label>
+                  <Input
+                    value={key}
+                    onChange={(e) => setKey(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
               </div>
 
               <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md p-3">

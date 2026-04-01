@@ -62,13 +62,17 @@ export default function Users() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
+      console.log('Fetching users with filters:', { filterRole, filterStatus });
       const response = await axios.get('/api/users', {
         params: {
           role: filterRole !== 'all' ? filterRole : undefined,
           is_active: filterStatus !== 'all' ? filterStatus : undefined,
         },
       });
-      setUsers(response.data);
+      console.log('Users response received:', response.data);
+      console.log('Number of users:', response.data?.length);
+      setUsers(response.data || []);
+      console.log('Users state updated');
     } catch (error: any) {
       console.error('Error fetching users:', error);
       console.error('Error response:', error.response);
@@ -77,6 +81,7 @@ export default function Users() {
         description: error.response?.data?.message || 'Gagal mengambil data users',
         variant: 'destructive',
       });
+      setUsers([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
@@ -204,8 +209,9 @@ export default function Users() {
       superadmin: { label: 'Super Admin', className: 'bg-purple-100 text-purple-700' },
       admin: { label: 'Admin', className: 'bg-blue-100 text-blue-700' },
       user: { label: 'User', className: 'bg-gray-100 text-gray-700' },
+      employee: { label: 'Employee', className: 'bg-green-100 text-green-700' },
     };
-    const { label, className } = config[role];
+    const { label, className } = config[role] || config.user;
     return <Badge className={className}>{label}</Badge>;
   };
 
@@ -243,6 +249,7 @@ export default function Users() {
                 <SelectItem value="superadmin">Super Admin</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
                 <SelectItem value="user">User</SelectItem>
+                <SelectItem value="employee">Employee</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -351,33 +358,36 @@ export default function Users() {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isEdit ? 'Edit User' : 'Tambah User'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="name">Nama</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Nama lengkap"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="name">Nama<span className="text-destructive">*</span></Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Nama lengkap"
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email<span className="text-destructive">*</span></Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="email@example.com"
+                />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="email@example.com"
-              />
-            </div>
+            
             <div>
               <Label htmlFor="password">
-                Password {isEdit && <span className="text-muted-foreground text-sm">(kosongkan jika tidak diubah)</span>}
+                Password<span className="text-destructive">*</span> {isEdit && <span className="text-muted-foreground text-sm">(kosongkan jika tidak diubah)</span>}
               </Label>
               <Input
                 id="password"
@@ -387,52 +397,118 @@ export default function Users() {
                 placeholder="Minimal 8 karakter"
               />
             </div>
-            <div>
-              <Label htmlFor="role">Role</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(value) => setFormData({ ...formData, role: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="superadmin">Super Admin</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="user">User</SelectItem>
-                </SelectContent>
-              </Select>
+
+            <div className="border-t pt-4">
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                🔐 Role & Hak Akses
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="role">Role Sistem<span className="text-destructive">*</span></Label>
+                  <Select
+                    value={formData.role}
+                    onValueChange={(value) => setFormData({ ...formData, role: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="superadmin">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">Super Admin</span>
+                          <span className="text-xs text-muted-foreground">- Full Access</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="admin">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">Admin</span>
+                          <span className="text-xs text-muted-foreground">- Management Access</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="user">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">User</span>
+                          <span className="text-xs text-muted-foreground">- Basic Access</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="employee">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">Employee</span>
+                          <span className="text-xs text-muted-foreground">- Employee Access</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Role sistem untuk kontrol akses dasar
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="user_role_id">Role Akses Custom (Opsional)</Label>
+                  <Select
+                    value={formData.user_role_id || 'none'}
+                    onValueChange={(value) => setFormData({ ...formData, user_role_id: value === 'none' ? '' : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih role akses custom" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">
+                        <span className="text-muted-foreground">Tidak menggunakan role custom</span>
+                      </SelectItem>
+                      {userRoles.map((role) => (
+                        <SelectItem key={role.id} value={role.id}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{role.displayName}</span>
+                            {role.description && (
+                              <span className="text-xs text-muted-foreground">{role.description}</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Role custom dengan permissions spesifik (jika diperlukan)
+                  </p>
+                  
+                  {formData.user_role_id && formData.user_role_id !== 'none' && (() => {
+                    const selectedRole = userRoles.find(r => r.id === formData.user_role_id);
+                    return selectedRole ? (
+                      <div className="mt-3 p-3 bg-muted/50 rounded-lg">
+                        <p className="text-xs font-semibold mb-2">Permissions yang dimiliki:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedRole.permissions.map((perm) => (
+                            <Badge key={perm} variant="secondary" className="text-xs">
+                              {perm}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+              </div>
             </div>
-            <div>
-              <Label htmlFor="user_role_id">User Role (Optional)</Label>
-              <Select
-                value={formData.user_role_id || 'none'}
-                onValueChange={(value) => setFormData({ ...formData, user_role_id: value === 'none' ? '' : value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih user role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Tidak ada</SelectItem>
-                  {userRoles.map((role) => (
-                    <SelectItem key={role.id} value={role.id}>
-                      {role.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="is_active"
-                checked={formData.is_active}
-                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                className="rounded"
-              />
-              <Label htmlFor="is_active" className="cursor-pointer">
-                Aktif
-              </Label>
+
+            <div className="border-t pt-4">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_active"
+                  checked={formData.is_active}
+                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                  className="rounded"
+                />
+                <Label htmlFor="is_active" className="cursor-pointer">
+                  Aktifkan user setelah dibuat
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 ml-6">
+                User yang tidak aktif tidak dapat login ke sistem
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -440,7 +516,7 @@ export default function Users() {
               Batal
             </Button>
             <Button onClick={handleSubmit}>
-              {isEdit ? 'Update' : 'Tambah'}
+              {isEdit ? 'Update User' : 'Tambah User'}
             </Button>
           </DialogFooter>
         </DialogContent>

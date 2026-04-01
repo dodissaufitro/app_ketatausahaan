@@ -14,12 +14,14 @@ class Attendance extends Model
         'check_out',
         'status',
         'work_hours',
+        'source',
+        'machine_name',
     ];
 
     protected $casts = [
         'date' => 'date',
-        'check_in' => 'datetime:H:i',
-        'check_out' => 'datetime:H:i',
+        'check_in' => 'string',
+        'check_out' => 'string',
         'work_hours' => 'decimal:2',
     ];
 

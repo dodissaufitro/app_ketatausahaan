@@ -54,9 +54,9 @@ class EmployeeController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id|unique:employees',
+            'user_id' => 'nullable|exists:users,id|unique:employees',
             'name' => 'required|string',
-            'email' => 'required|email',
+            'email' => 'required|email|unique:users,email',
             'phone' => 'required|string',
             'department' => 'required|string',
             'position' => 'required|string',
@@ -64,7 +64,35 @@ class EmployeeController extends Controller
             'status' => 'nullable|in:active,inactive,on-leave',
             'salary' => 'required|numeric|min:0',
             'avatar' => 'nullable|string',
+            'username' => 'nullable|string|unique:users,email',
+            'password' => 'nullable|string|min:6',
+            'role' => 'nullable|in:superadmin,admin,user,employee',
+            'user_role_id' => 'nullable|exists:user_roles,id',
         ]);
+
+        // Jika user_id tidak diberikan, buat user baru otomatis
+        if (!isset($validated['user_id']) || empty($validated['user_id'])) {
+            // Generate username dari email jika tidak diberikan
+            $username = $validated['username'] ?? $validated['email'];
+
+            // Generate password default jika tidak diberikan
+            $password = $validated['password'] ?? 'password123'; // Default password
+
+            // Gunakan role dari request, default ke 'employee'
+            $userRole = $validated['role'] ?? 'employee';
+
+            // Buat user baru
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => bcrypt($password),
+                'role' => $userRole,
+                'user_role_id' => $validated['user_role_id'] ?? null,
+                'is_active' => true,
+            ]);
+
+            $validated['user_id'] = $user->id;
+        }
 
         // Auto-generate employee_id
         $lastEmployee = Employee::orderBy('id', 'desc')->first();
@@ -75,8 +103,15 @@ class EmployeeController extends Controller
         }
         $validated['employee_id'] = 'EMP' . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
 
+        // Hapus field yang tidak ada di tabel employees
+        unset($validated['username'], $validated['password'], $validated['user_role_id'], $validated['role']);
+
         $employee = Employee::create($validated);
-        return response()->json($employee->load('user'), 201);
+        return response()->json([
+            'employee' => $employee->load('user'),
+            'message' => 'Karyawan dan user berhasil ditambahkan',
+            'default_password' => !$request->has('password') ? 'password123' : null,
+        ], 201);
     }
 
     /**

@@ -19,8 +19,8 @@ class AngkutanUmumController extends Controller
         $user = Auth::user();
 
         // Check if user has download permission
-        $hasDownloadPermission = $user->role === 'superadmin' || 
-                                DownloadPermission::hasPermission($user->id, 'angkutan_umum');
+        $hasDownloadPermission = $user->role === 'superadmin' ||
+            DownloadPermission::hasPermission($user->id, 'angkutan_umum');
 
         if ($hasDownloadPermission) {
             // Users with download permission can see all data

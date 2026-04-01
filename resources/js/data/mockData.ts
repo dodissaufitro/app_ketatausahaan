@@ -85,6 +85,7 @@ export const attendanceRecords: Attendance[] = [
     checkOut: '17:30',
     status: 'present',
     workHours: 9,
+    source: 'manual',
   },
   {
     id: '2',
@@ -95,6 +96,7 @@ export const attendanceRecords: Attendance[] = [
     checkOut: '18:00',
     status: 'late',
     workHours: 8.75,
+    source: 'manual',
   },
   {
     id: '3',
@@ -105,6 +107,7 @@ export const attendanceRecords: Attendance[] = [
     checkOut: '17:00',
     status: 'present',
     workHours: 9,
+    source: 'x601',
   },
   {
     id: '4',
@@ -115,6 +118,7 @@ export const attendanceRecords: Attendance[] = [
     checkOut: '-',
     status: 'absent',
     workHours: 0,
+    source: 'manual',
   },
   {
     id: '5',
@@ -125,6 +129,7 @@ export const attendanceRecords: Attendance[] = [
     checkOut: '17:45',
     status: 'present',
     workHours: 9,
+    source: 'x601',
   },
 ];
 
