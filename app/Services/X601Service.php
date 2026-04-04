@@ -8,7 +8,7 @@ class X601Service
     protected int $port;
     protected string $key;
 
-    public function __construct(string $ip, string $key, int $port = 80)
+    public function __construct(string $ip, string $key, int $port = 1121)
     {
         $this->ip = $ip;
         $this->port = $port;

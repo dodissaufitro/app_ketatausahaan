@@ -30,11 +30,11 @@
 ### 4. **Controller Endpoint IP Override Support**
 
 - **File**: `app/Http/Controllers/AttendanceController.php`
-- **Masalah**: Sync endpoint tidak bisa override IP (fixed ke 10.1.7.28)
+- **Masalah**: Sync endpoint tidak bisa override IP (fixed ke 103.116.175.218)
 - **Solusi**:
     - `syncFromX601()` sekarang accept optional `ip`, `key`, `port` parameters
     - `fetchFromX601()` juga support parameter override
-    - Default fallback ke 10.1.7.28 jika tidak provided
+    - Default fallback ke 103.116.175.218 jika tidak provided
 
 ### 5. **Frontend Modal IP Input**
 
@@ -68,9 +68,9 @@ POST /api/attendances/sync-x601/manual
 Body: {
   "date": null,
   "employee_id": null,
-  "ip": "10.1.7.28",
+  "ip": "103.116.175.218",
   "key": "0",
-  "port": 80
+  "port": 1121
 }
 ```
 
@@ -120,7 +120,7 @@ php artisan attendance:sync-x601 --verbose
 
 1. Go to Kehadiran page
 2. Click "Sinkron X601" button
-3. Set IP: 10.1.7.28, Port: 80, Key: 0 (or use defaults)
+3. Set IP: 103.116.175.218, Port: 1121, Key: 0 (or use defaults)
 4. Click "Sinkronisasi"
 5. Should see 4 records synced
 6. Table should refresh to show X601 source data

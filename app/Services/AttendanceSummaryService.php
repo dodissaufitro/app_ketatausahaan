@@ -17,39 +17,32 @@ class AttendanceSummaryService
         $startDate = Carbon::create($year, $month, 1)->startOfMonth();
         $endDate = Carbon::create($year, $month, 1)->endOfMonth();
 
-        // Get all attendances with employees for the month
+        // Get ALL active employees
+        $allEmployees = Employee::where('status', 'active')->get();
+
+        // Get all attendances for the month
         $attendances = Attendance::with('employee')
             ->whereBetween('date', [$startDate, $endDate])
             ->where('source', 'x601')
             ->get()
             ->groupBy('employee_id');
 
-        $employees = [];
-        foreach ($attendances as $employeeId => $employeeAttendances) {
-            $employee = $employeeAttendances->first()->employee;
-            if ($employee) {
-                $employees[] = [
-                    'employee' => $employee,
-                    'attendances' => $employeeAttendances
-                ];
-            }
-        }
-
         $summary = [];
         $workingDays = $this->getWorkingDaysInMonth($year, $month);
 
-        foreach ($employees as $employeeData) {
+        // Loop through ALL employees (not just those with attendance)
+        foreach ($allEmployees as $employee) {
+            $employeeAttendances = $attendances->get($employee->id, collect([]));
+
             $employeeSummary = $this->calculateEmployeeMonthlySummary(
-                $employeeData['employee'],
-                $employeeData['attendances'],
+                $employee,
+                $employeeAttendances,
                 $workingDays,
                 $year,
                 $month
             );
 
-            if ($employeeSummary['total_days'] > 0) {
-                $summary[] = $employeeSummary;
-            }
+            $summary[] = $employeeSummary;
         }
 
         return [
@@ -115,6 +108,13 @@ class AttendanceSummaryService
                     $totalWorkHours += (float) $attendance->work_hours;
                     $presentDays++;
                 }
+            }
+        }
+
+        // Count remaining absent days (days that were initialized as absent but not updated)
+        foreach ($dailyRecords as $record) {
+            if ($record['status'] === 'absent' && $record['check_in'] === null) {
+                $stats['absent']++;
             }
         }
 

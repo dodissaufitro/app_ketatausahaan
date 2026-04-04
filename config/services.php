@@ -36,8 +36,8 @@ return [
     ],
 
     'x601' => [
-        'base_url' => env('X601_API_BASE_URL', 'http://localhost:8080'),
-        'api_key' => env('X601_API_KEY', ''),
+        'base_url' => env('X601_API_BASE_URL', 'http://103.116.175.218:1121'),
+        'api_key' => env('X601_API_KEY', '0'),
         'timeout' => env('X601_API_TIMEOUT', 30),
         'enabled' => env('X601_API_ENABLED', false),
     ],

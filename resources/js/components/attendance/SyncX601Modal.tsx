@@ -29,9 +29,9 @@ export function SyncX601Modal({ isOpen, onClose, onSuccess }: SyncX601ModalProps
   const [loading, setLoading] = useState(false);
   const [syncDate, setSyncDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [employeeId, setEmployeeId] = useState<string>('');
-  const [ip, setIp] = useState<string>('10.1.7.28');
+  const [ip, setIp] = useState<string>('103.116.175.218');
   const [key, setKey] = useState<string>('0');
-  const [port, setPort] = useState<number>(80);
+  const [port, setPort] = useState<number>(1121);
   const [result, setResult] = useState<SyncResult | null>(null);
   const { toast } = useToast();
 
@@ -43,9 +43,9 @@ export function SyncX601Modal({ isOpen, onClose, onSuccess }: SyncX601ModalProps
       const response = await axios.post('/api/attendances/sync-x601/manual', {
         date: syncDate || null,
         employee_id: employeeId || null,
-        ip: ip || '10.1.7.28',
+        ip: ip || '103.116.175.218',
         key: key || '0',
-        port: port || 80,
+        port: port || 1121,
       });
 
       const data = response.data;

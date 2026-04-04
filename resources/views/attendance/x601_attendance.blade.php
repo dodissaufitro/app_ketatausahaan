@@ -19,8 +19,8 @@
                         <label class="form-label fw-semibold">
                             <i class="bi bi-router"></i> IP Address
                         </label>
-                        <input type="text" name="ip" class="form-control" placeholder="10.1.7.28"
-                            value="{{ $IP ?? '10.1.7.28' }}">
+                        <input type="text" name="ip" class="form-control" placeholder="103.116.175.218"
+                            value="{{ $IP ?? '103.116.175.218' }}">
                     </div>
 
                     <div class="col-lg-2 col-md-6">

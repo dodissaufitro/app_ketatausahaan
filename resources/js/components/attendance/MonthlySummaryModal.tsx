@@ -69,6 +69,14 @@ export function MonthlySummaryModal({ isOpen, onClose }: MonthlySummaryModalProp
   const [summary, setSummary] = useState<MonthlySummaryData | null>(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [downloadingEmployee, setDownloadingEmployee] = useState<string | null>(null);
+  
+  // Date range picker dialog state
+  const [dateRangeDialogOpen, setDateRangeDialogOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeSummary | null>(null);
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  
   const { toast } = useToast();
 
   // Generate year options (current year and 2 years back)
@@ -134,6 +142,79 @@ export function MonthlySummaryModal({ isOpen, onClose }: MonthlySummaryModalProp
     }
   };
 
+  const handleDownloadEmployee = (employee: EmployeeSummary) => {
+    setSelectedEmployee(employee);
+    // Set default date range to current month
+    const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+    setCustomStartDate(startDate);
+    setCustomEndDate(endDate);
+    setDateRangeDialogOpen(true);
+  };
+
+  const handleConfirmDownloadEmployee = async () => {
+    if (!selectedEmployee || !customStartDate || !customEndDate) return;
+
+    setDownloadingEmployee(selectedEmployee.employee_id);
+    try {
+      // Find employee by employee_id to get database ID
+      const employeeResponse = await axios.get('/api/employees');
+      const employees = employeeResponse.data.data || employeeResponse.data || [];
+      const employeeData = employees.find((emp: any) => emp.employee_id === selectedEmployee.employee_id);
+
+      if (!employeeData) {
+        throw new Error('Karyawan tidak ditemukan');
+      }
+
+      const response = await axios.get('/api/attendances/export-excel', {
+        params: {
+          start_date: customStartDate,
+          end_date: customEndDate,
+          employee_id: employeeData.id,
+        },
+        responseType: 'blob',
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Extract filename from content-disposition header or use default
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = `Laporan_Kehadiran_${selectedEmployee.employee_id}_${customStartDate}_${customEndDate}.xlsx`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: 'Berhasil',
+        description: `Laporan kehadiran ${selectedEmployee.machine_name || selectedEmployee.employee_name} berhasil diunduh`,
+      });
+
+      // Close dialog and reset
+      setDateRangeDialogOpen(false);
+      setSelectedEmployee(null);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || error.message || 'Gagal mengunduh laporan',
+        variant: 'destructive',
+      });
+    } finally {
+      setDownloadingEmployee(null);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       fetchSummary();
@@ -148,14 +229,15 @@ export function MonthlySummaryModal({ isOpen, onClose }: MonthlySummaryModalProp
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Rangkuman Absensi Bulanan
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Rangkuman Absensi Bulanan
+            </DialogTitle>
+          </DialogHeader>
 
         {/* Filters */}
         <div className="flex gap-4 mb-6">
@@ -299,7 +381,19 @@ export function MonthlySummaryModal({ isOpen, onClose }: MonthlySummaryModalProp
                           {employee.position && ` • ${employee.position}`}
                         </p>
                       </div>
-                      {getStatusBadge(employee.present_percentage)}
+                      <div className="flex items-center gap-2">
+                        {getStatusBadge(employee.present_percentage)}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadEmployee(employee)}
+                          disabled={downloadingEmployee === employee.employee_id}
+                          className="gap-1"
+                        >
+                          <Download className="h-3 w-3" />
+                          {downloadingEmployee === employee.employee_id ? 'Downloading...' : 'Excel'}
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -345,5 +439,73 @@ export function MonthlySummaryModal({ isOpen, onClose }: MonthlySummaryModalProp
         )}
       </DialogContent>
     </Dialog>
+
+    {/* Date Range Picker Dialog */}
+    <Dialog open={dateRangeDialogOpen} onOpenChange={setDateRangeDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Pilih Rentang Waktu</DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            {selectedEmployee && `Download laporan kehadiran ${selectedEmployee.machine_name || selectedEmployee.employee_name}`}
+          </p>
+        </DialogHeader>
+
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="custom-start-date">Tanggal Mulai</Label>
+            <Input
+              id="custom-start-date"
+              type="date"
+              value={customStartDate}
+              onChange={(e) => setCustomStartDate(e.target.value)}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="custom-end-date">Tanggal Akhir</Label>
+            <Input
+              id="custom-end-date"
+              type="date"
+              value={customEndDate}
+              onChange={(e) => setCustomEndDate(e.target.value)}
+            />
+          </div>
+
+          <div className="text-sm text-muted-foreground">
+            Default: {new Date(year, month - 1, 1).toLocaleDateString('id-ID')} - {new Date(year, month, 0).toLocaleDateString('id-ID')}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setDateRangeDialogOpen(false);
+              setSelectedEmployee(null);
+            }}
+            disabled={downloadingEmployee !== null}
+          >
+            Batal
+          </Button>
+          <Button
+            onClick={handleConfirmDownloadEmployee}
+            disabled={downloadingEmployee !== null || !customStartDate || !customEndDate}
+          >
+            {downloadingEmployee ? (
+              <>
+                <Download className="mr-2 h-4 w-4 animate-spin" />
+                Mengunduh...
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Unduh Excel
+              </>
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

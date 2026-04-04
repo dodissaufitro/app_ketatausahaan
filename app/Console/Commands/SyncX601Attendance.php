@@ -28,6 +28,8 @@ class SyncX601Attendance extends Command
      */
     public function handle(X601AttendanceService $service): int
     {
+        $verbose = $this->getOutput()->isVerbose();
+
         $this->info('Starting X601 Attendance Synchronization...');
         $this->newLine();
 
@@ -56,6 +58,10 @@ class SyncX601Attendance extends Command
             // Display results
             if ($result['synced'] > 0) {
                 $this->info("✓ Successfully synced: {$result['synced']} records");
+            }
+
+            if (isset($result['absent_marked']) && $result['absent_marked'] > 0) {
+                $this->info("✓ Marked as absent: {$result['absent_marked']} employees");
             }
 
             if (!empty($result['errors'])) {

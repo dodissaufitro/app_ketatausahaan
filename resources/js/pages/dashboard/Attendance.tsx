@@ -21,6 +21,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { SyncX601Modal } from '@/components/attendance/SyncX601Modal';
 import { MonthlySummaryModal } from '@/components/attendance/MonthlySummaryModal';
@@ -37,6 +46,10 @@ import {
   Cpu,
   User,
   BarChart3,
+  CalendarDays,
+  Stethoscope,
+  Baby,
+  Heart,
 } from 'lucide-react';
 
 // ====== CONSTANT JAM KANTOR ======
@@ -97,6 +110,16 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [syncModalOpen, setSyncModalOpen] = useState(false);
   const [monthlySummaryModalOpen, setMonthlySummaryModalOpen] = useState(false);
+  
+  // Export state
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState('');
+  const [exportEmployeeId, setExportEmployeeId] = useState('');
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
+  
   const { toast } = useToast();
 
   // ====== FETCH DATA ======
@@ -131,6 +154,101 @@ export default function AttendancePage() {
   useEffect(() => {
     fetchAttendances();
   }, [filterDate, filterStatus, filterSource]);
+
+  // ====== FETCH EMPLOYEES ======
+  const fetchEmployees = async () => {
+    try {
+      setLoadingEmployees(true);
+      const response = await axios.get('/api/employees');
+      setEmployees(response.data.data || response.data || []);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal mengambil data karyawan',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
+
+  useEffect(() => {
+    if (exportModalOpen) {
+      fetchEmployees();
+      // Set default dates (current month)
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      setExportStartDate(firstDay.toISOString().split('T')[0]);
+      setExportEndDate(lastDay.toISOString().split('T')[0]);
+    }
+  }, [exportModalOpen]);
+
+  // ====== DOWNLOAD EXCEL ======
+  const handleDownloadExcel = async () => {
+    if (!exportStartDate || !exportEndDate) {
+      toast({
+        title: 'Error',
+        description: 'Tanggal mulai dan tanggal akhir harus diisi',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setDownloadingExcel(true);
+      
+      const params: any = {
+        start_date: exportStartDate,
+        end_date: exportEndDate,
+      };
+
+      if (exportEmployeeId) {
+        params.employee_id = exportEmployeeId;
+      }
+
+      const response = await axios.get('/api/attendances/export-excel', {
+        params,
+        responseType: 'blob',
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Extract filename from content-disposition header or use default
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'Laporan_Kehadiran.xlsx';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: 'Berhasil',
+        description: 'Data kehadiran berhasil diunduh',
+      });
+
+      setExportModalOpen(false);
+    } catch (error:any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Gagal mengunduh data kehadiran',
+        variant: 'destructive',
+      });
+    } finally {
+      setDownloadingExcel(false);
+    }
+  };
 
   // ====== PROSES DATA ======
   const processedAttendance = attendanceList.map((record) => {
@@ -178,8 +296,33 @@ export default function AttendancePage() {
         label: 'Pulang Cepat',
         className: 'bg-info/10 text-info',
       },
+      'on-leave': {
+        icon: CalendarDays,
+        label: 'Cuti',
+        className: 'bg-blue-500/10 text-blue-600',
+      },
+      'sick-leave': {
+        icon: Stethoscope,
+        label: 'Sakit',
+        className: 'bg-orange-500/10 text-orange-600',
+      },
+      'personal-leave': {
+        icon: User,
+        label: 'Izin',
+        className: 'bg-purple-500/10 text-purple-600',
+      },
+      'maternity-leave': {
+        icon: Baby,
+        label: 'Cuti Melahirkan',
+        className: 'bg-pink-500/10 text-pink-600',
+      },
+      'paternity-leave': {
+        icon: Heart,
+        label: 'Cuti Ayah',
+        className: 'bg-indigo-500/10 text-indigo-600',
+      },
     };
-    const { icon: Icon, label, className } = config[status];
+    const { icon: Icon, label, className } = config[status] || config.absent;
     return (
       <Badge variant="secondary" className={className}>
         <Icon className="h-3 w-3 mr-1" />
@@ -200,8 +343,18 @@ export default function AttendancePage() {
         label: 'Manual',
         className: 'bg-gray-500/10 text-gray-600',
       },
+      system: {
+        icon: AlertCircle,
+        label: 'Tidak Hadir',
+        className: 'bg-red-500/10 text-red-600',
+      },
+      leave: {
+        icon: CalendarDays,
+        label: 'Cuti atau Izin',
+        className: 'bg-green-500/10 text-green-600',
+      },
     };
-    const { icon: Icon, label, className } = config[source];
+    const { icon: Icon, label, className } = config[source] || config.manual;
     return (
       <Badge variant="outline" className={className}>
         <Icon className="h-3 w-3 mr-1" />
@@ -211,10 +364,7 @@ export default function AttendancePage() {
   };
 
   const handleExport = () => {
-    toast({
-      title: 'Export Data',
-      description: 'Data kehadiran sedang diunduh...',
-    });
+    setExportModalOpen(true);
   };
 
   const handleSyncSuccess = () => {
@@ -232,6 +382,90 @@ export default function AttendancePage() {
         isOpen={monthlySummaryModalOpen}
         onClose={() => setMonthlySummaryModalOpen(false)}
       />
+
+      {/* Export Excel Modal */}
+      <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Export Data Kehadiran</DialogTitle>
+            <DialogDescription>
+              Filter data kehadiran berdasarkan tanggal dan karyawan, lalu unduh dalam format Excel.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="start-date">Tanggal Mulai</Label>
+              <Input
+                id="start-date"
+                type="date"
+                value={exportStartDate}
+                onChange={(e) => setExportStartDate(e.target.value)}
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="end-date">Tanggal Akhir</Label>
+              <Input
+                id="end-date"
+                type="date"
+                value={exportEndDate}
+                onChange={(e) => setExportEndDate(e.target.value)}
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="employee">Karyawan (Opsional)</Label>
+              <Select
+                value={exportEmployeeId}
+                onValueChange={setExportEmployeeId}
+              >
+                <SelectTrigger id="employee">
+                  <SelectValue placeholder="Semua Karyawan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Semua Karyawan</SelectItem>
+                  {loadingEmployees ? (
+                    <SelectItem value="" disabled>Loading...</SelectItem>
+                  ) : (
+                    employees.map((emp) => (
+                      <SelectItem key={emp.id} value={emp.id.toString()}>
+                        {emp.employee_id} - {emp.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setExportModalOpen(false)}
+              disabled={downloadingExcel}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={handleDownloadExcel}
+              disabled={downloadingExcel || !exportStartDate || !exportEndDate}
+            >
+              {downloadingExcel ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Mengunduh...
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Unduh Excel
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

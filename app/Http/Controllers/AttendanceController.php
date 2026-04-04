@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\Employee;
+use App\Models\Leave;
+use App\Exports\AttendanceExport;
 use App\Services\X601AttendanceService;
 use App\Services\X601Service;
 use App\Services\AttendanceSummaryService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -18,48 +22,138 @@ class AttendanceController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Attendance::with('employee');
+        // Determine the date to display (default to today)
+        $date = $request->has('date') ? $request->date : now()->format('Y-m-d');
 
-        // Filter by date
-        if ($request->has('date')) {
-            $query->whereDate('date', $request->date);
+        // Get all active employees
+        $employees = Employee::where('status', 'active')->get();
+
+        // Get attendance records for the specified date
+        $attendanceQuery = Attendance::with('employee')
+            ->whereDate('date', $date);
+
+        // Filter by source (if specified)
+        $sourceFilter = $request->get('source', 'x601'); // default to x601
+        if ($sourceFilter && $sourceFilter !== 'all' && in_array($sourceFilter, ['manual', 'x601'])) {
+            $attendanceQuery->where('source', $sourceFilter);
         }
 
-        // Filter by status
-        if ($request->has('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
-        }
+        $attendances = $attendanceQuery->get()->keyBy('employee_id');
 
-        // Filter by employee
-        if ($request->has('employee_id')) {
-            $query->where('employee_id', $request->employee_id);
-        }
+        // Get approved leaves for this date
+        $approvedLeaves = Leave::where('status', 'approved')
+            ->whereDate('start_date', '<=', $date)
+            ->whereDate('end_date', '>=', $date)
+            ->get()
+            ->keyBy('employee_id');
 
-        // Filter by source (default from X601)
-        if ($request->has('source') && in_array($request->source, ['manual', 'x601'])) {
-            $query->where('source', $request->source);
-        } else {
-            $query->where('source', 'x601');
-        }
+        // Build the result with all employees
+        $transformed = $employees->map(function ($employee) use ($attendances, $approvedLeaves, $date, $sourceFilter) {
+            $attendance = $attendances->get($employee->id);
+            $leave = $approvedLeaves->get($employee->id);
 
-        $attendances = $query->orderBy('date', 'desc')->orderBy('check_in', 'desc')->get();
+            if ($attendance) {
+                // Employee has attendance record
+                $status = $attendance->status;
+                $leaveType = null;
 
-        // Transform data to match frontend expectations
-        $transformed = $attendances->map(function ($attendance) {
-            return [
-                'id' => (string) $attendance->id,
-                'employeeId' => $attendance->employee->employee_id ?? '',
-                'employeeName' => $attendance->machine_name ?? $attendance->employee->name ?? '',
-                'date' => $attendance->date->format('Y-m-d'),
-                'checkIn' => $attendance->check_in ?? '',
-                'checkOut' => $attendance->check_out ?? '',
-                'status' => $attendance->status,
-                'workHours' => (float) $attendance->work_hours,
-                'source' => $attendance->source ?? 'manual',
-            ];
+                // Override status if employee has approved leave
+                if ($leave) {
+                    $status = $this->getLeaveStatus($leave->type);
+                    $leaveType = $leave->type;
+                }
+
+                return [
+                    'id' => (string) $attendance->id,
+                    'employeeId' => $employee->employee_id ?? '',
+                    'employeeName' => $attendance->machine_name ?? $employee->name ?? '',
+                    'date' => $attendance->date->format('Y-m-d'),
+                    'checkIn' => $attendance->check_in ?? '',
+                    'checkOut' => $attendance->check_out ?? '',
+                    'status' => $status,
+                    'leaveType' => $leaveType,
+                    'workHours' => (float) $attendance->work_hours,
+                    'source' => $attendance->source ?? 'manual',
+                    'include' => true, // always include if has attendance
+                ];
+            } else {
+                // Employee does not have attendance record
+                // Check if employee has approved leave
+                if ($leave) {
+                    return [
+                        'id' => null,
+                        'employeeId' => $employee->employee_id ?? '',
+                        'employeeName' => $employee->name ?? '',
+                        'date' => $date,
+                        'checkIn' => '',
+                        'checkOut' => '',
+                        'status' => $this->getLeaveStatus($leave->type),
+                        'leaveType' => $leave->type,
+                        'workHours' => 0,
+                        'source' => 'leave',
+                        'include' => true,
+                    ];
+                }
+
+                // No attendance and no leave - mark as absent
+                // Only include absent employees if showing x601 or all
+                $includeAbsent = ($sourceFilter === 'all' || $sourceFilter === 'x601');
+
+                return [
+                    'id' => null,
+                    'employeeId' => $employee->employee_id ?? '',
+                    'employeeName' => $employee->name ?? '',
+                    'date' => $date,
+                    'checkIn' => '',
+                    'checkOut' => '',
+                    'status' => 'absent',
+                    'leaveType' => null,
+                    'workHours' => 0,
+                    'source' => 'system',
+                    'include' => $includeAbsent,
+                ];
+            }
         });
 
-        return response()->json($transformed);
+        // Filter out records that should not be included
+        $transformed = $transformed->filter(function ($item) {
+            return $item['include'] ?? true;
+        })->map(function ($item) {
+            unset($item['include']);
+            return $item;
+        });
+
+        // Apply status filter on the final result
+        if ($request->has('status') && $request->status !== 'all') {
+            $transformed = $transformed->filter(function ($item) use ($request) {
+                return $item['status'] === $request->status;
+            })->values();
+        }
+
+        // Apply employee_id filter on the final result
+        if ($request->has('employee_id')) {
+            $transformed = $transformed->filter(function ($item) use ($request) {
+                return $item['employeeId'] === $request->employee_id;
+            })->values();
+        }
+
+        return response()->json($transformed->values());
+    }
+
+    /**
+     * Get leave status based on leave type
+     */
+    private function getLeaveStatus(string $leaveType): string
+    {
+        $statusMap = [
+            'annual' => 'on-leave',      // Cuti tahunan
+            'sick' => 'sick-leave',      // Sakit
+            'personal' => 'personal-leave', // Izin pribadi
+            'maternity' => 'maternity-leave', // Cuti melahirkan
+            'paternity' => 'paternity-leave', // Cuti ayah
+        ];
+
+        return $statusMap[$leaveType] ?? 'on-leave';
     }
 
     /**
@@ -67,7 +161,7 @@ class AttendanceController extends Controller
      */
     public function x601Dashboard(Request $request)
     {
-        $IP = $request->get('ip', '10.1.7.28');
+        $IP = $request->get('ip', '103.116.175.218');
         $Key = $request->get('key', '0');
         $tgl_awal = $request->get('tgl_awal', '');
         $tgl_akhir = $request->get('tgl_akhir', '');
@@ -184,9 +278,9 @@ class AttendanceController extends Controller
             'port' => 'nullable|integer',
         ]);
 
-        $ip = $validated['ip'] ?? '10.1.7.28';
+        $ip = $validated['ip'] ?? '103.116.175.218';
         $key = $validated['key'] ?? config('services.x601.api_key', '0');
-        $port = $validated['port'] ?? 80;
+        $port = $validated['port'] ?? 1121;
 
         $result = $service->syncAttendance(
             $validated['date'] ?? null,
@@ -216,9 +310,9 @@ class AttendanceController extends Controller
             'port' => 'nullable|integer',
         ]);
 
-        $ip = $validated['ip'] ?? '10.1.7.28';
+        $ip = $validated['ip'] ?? '103.116.175.218';
         $key = $validated['key'] ?? config('services.x601.api_key', '0');
-        $port = $validated['port'] ?? 80;
+        $port = $validated['port'] ?? 1121;
 
         $data = $service->fetchFromMachine(
             $validated['date'] ?? null,
@@ -236,7 +330,7 @@ class AttendanceController extends Controller
      */
     public function connectX601(Request $request)
     {
-        $ipParam = $request->get('ip', '10.1.7.28');
+        $ipParam = $request->get('ip', '103.116.175.218');
         $Key = $request->get('key', '0');
         $tgl_awal = $request->get('tgl_awal', '');
         $tgl_akhir = $request->get('tgl_akhir', '');
@@ -247,7 +341,7 @@ class AttendanceController extends Controller
             $port = (int) $port;
         } else {
             $IP = $ipParam;
-            $port = 80;
+            $port = 1121;
         }
 
         try {
@@ -506,9 +600,9 @@ class AttendanceController extends Controller
             'port' => 'nullable|integer',
         ]);
 
-        $ip = $validated['ip'] ?? '10.1.7.28';
+        $ip = $validated['ip'] ?? '103.116.175.218';
         $key = $validated['key'] ?? config('services.x601.api_key', '0');
-        $port = $validated['port'] ?? 80;
+        $port = $validated['port'] ?? 1121;
 
         $result = $service->syncAllAttendance(
             $validated['employee_id'] ?? null,
@@ -522,5 +616,147 @@ class AttendanceController extends Controller
         }
 
         return response()->json($result);
+    }
+
+    /**
+     * Export attendance data to Excel with filters
+     */
+    public function exportExcel(Request $request)
+    {
+        $validated = $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'employee_id' => 'nullable|exists:employees,id',
+        ]);
+
+        try {
+            $export = new AttendanceExport(
+                $validated['start_date'],
+                $validated['end_date'],
+                $validated['employee_id'] ?? null
+            );
+
+            $spreadsheet = $export->export();
+            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+
+            // Generate filename
+            $filename = 'Laporan_Kehadiran_' .
+                date('Ymd', strtotime($validated['start_date'])) . '-' .
+                date('Ymd', strtotime($validated['end_date']));
+
+            if (!empty($validated['employee_id'])) {
+                $employee = Employee::find($validated['employee_id']);
+                if ($employee) {
+                    $filename .= '_' . str_replace(' ', '_', $employee->name);
+                }
+            }
+
+            $filename .= '.xlsx';
+
+            // Stream response
+            return response()->streamDownload(function () use ($writer) {
+                $writer->save('php://output');
+            }, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'max-age=0',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal export data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Mark all active employees without attendance on a given date as absent.
+     * Accepts optional 'date' (Y-m-d) and 'skip_weekends' (bool) in the request body.
+     */
+    public function markAbsent(Request $request, X601AttendanceService $service)
+    {
+        $validated = $request->validate([
+            'date'          => 'nullable|date_format:Y-m-d',
+            'skip_weekends' => 'nullable|boolean',
+        ]);
+
+        $date         = $validated['date'] ?? now()->subDay()->format('Y-m-d');
+        $skipWeekends = $validated['skip_weekends'] ?? true;
+
+        $result = $service->markAbsentForDate($date, (bool) $skipWeekends);
+
+        $status = !empty($result['errors']) ? 207 : 200;
+        return response()->json($result, $status);
+    }
+
+    /**
+     * Sync users/employees from X601 machine to employees table.
+     * Creates new employees if they don't exist, updates name if changed.
+     */
+    public function syncUsersFromX601(Request $request, X601AttendanceService $service)
+    {
+        $validated = $request->validate([
+            'ip'   => 'nullable|string',
+            'key'  => 'nullable|string',
+            'port' => 'nullable|integer',
+        ]);
+
+        $ip   = $validated['ip'] ?? null;
+        $key  = $validated['key'] ?? null;
+        $port = $validated['port'] ?? null;
+
+        $result = $service->syncUsersFromX601($ip, $key, $port);
+
+        $status = !empty($result['errors']) ? 207 : 200;
+        return response()->json($result, $status);
+    }
+
+    /**
+     * Fetch users list directly from X601 machine (preview before sync).
+     */
+    public function fetchUsersFromX601(Request $request)
+    {
+        $validated = $request->validate([
+            'ip'   => 'nullable|string',
+            'key'  => 'nullable|string',
+            'port' => 'nullable|integer',
+        ]);
+
+        $ip = $validated['ip'] ?? '103.116.175.218';
+        $key = $validated['key'] ?? '0';
+        $port = $validated['port'] ?? 1121;
+
+        try {
+            $x601Service = new X601Service($ip, $key, $port);
+            $users = $x601Service->getUsers();
+
+            // Convert to array of objects for frontend
+            $userList = [];
+            foreach ($users as $pin => $name) {
+                $userList[] = [
+                    'pin' => $pin,
+                    'name' => $name,
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $userList,
+                'count' => count($userList),
+                'parameters' => [
+                    'ip' => $ip,
+                    'port' => $port,
+                    'key' => $key,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'parameters' => [
+                    'ip' => $ip,
+                    'port' => $port,
+                    'key' => $key,
+                ]
+            ], 500);
+        }
     }
 }

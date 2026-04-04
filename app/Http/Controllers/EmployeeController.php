@@ -76,7 +76,7 @@ class EmployeeController extends Controller
             $username = $validated['username'] ?? $validated['email'];
 
             // Generate password default jika tidak diberikan
-            $password = $validated['password'] ?? 'password123'; // Default password
+            $password = $validated['password'] ?? '12344321'; // Default password
 
             // Gunakan role dari request, default ke 'employee'
             $userRole = $validated['role'] ?? 'employee';
@@ -110,7 +110,7 @@ class EmployeeController extends Controller
         return response()->json([
             'employee' => $employee->load('user'),
             'message' => 'Karyawan dan user berhasil ditambahkan',
-            'default_password' => !$request->has('password') ? 'password123' : null,
+            'default_password' => !$request->has('password') ? '12344321' : null,
         ], 201);
     }
 

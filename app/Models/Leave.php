@@ -41,6 +41,16 @@ class Leave extends Model
         $startDate = Carbon::parse($this->start_date);
         $endDate = Carbon::parse($this->end_date);
 
+        // Map leave type to attendance status
+        $attendanceStatus = match ($this->type) {
+            'annual' => 'on-leave',
+            'sick' => 'sick-leave',
+            'personal' => 'personal-leave',
+            'maternity' => 'maternity-leave',
+            'paternity' => 'paternity-leave',
+            default => 'on-leave',
+        };
+
         // Loop through each day in the leave period
         for ($date = $startDate->copy(); $date->lte($endDate); $date->addDay()) {
             // Skip weekends (optional - adjust based on business rules)
@@ -53,15 +63,25 @@ class Leave extends Model
                 ->whereDate('date', $date)
                 ->first();
 
-            if (!$existingAttendance) {
-                // Create new attendance record with status 'absent' for leave
+            if ($existingAttendance) {
+                // Update existing attendance to leave status
+                $existingAttendance->update([
+                    'status' => $attendanceStatus,
+                    'source' => 'leave',
+                    'check_in' => null,
+                    'check_out' => null,
+                    'work_hours' => 0,
+                ]);
+            } else {
+                // Create new attendance record with leave status
                 Attendance::create([
                     'employee_id' => $this->employee_id,
                     'date' => $date->format('Y-m-d'),
                     'check_in' => null,
                     'check_out' => null,
-                    'status' => 'absent', // Using 'absent' status to indicate on leave
+                    'status' => $attendanceStatus,
                     'work_hours' => 0,
+                    'source' => 'leave',
                 ]);
             }
         }
@@ -75,12 +95,10 @@ class Leave extends Model
         $startDate = Carbon::parse($this->start_date);
         $endDate = Carbon::parse($this->end_date);
 
-        // Delete attendance records created for this leave period
+        // Delete attendance records created for this leave period (with source 'leave')
         Attendance::where('employee_id', $this->employee_id)
             ->whereBetween('date', [$startDate, $endDate])
-            ->where('status', 'absent')
-            ->whereNull('check_in')
-            ->whereNull('check_out')
+            ->where('source', 'leave')
             ->delete();
     }
 }

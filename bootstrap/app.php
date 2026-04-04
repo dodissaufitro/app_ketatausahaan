@@ -18,7 +18,6 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
-            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
         $middleware->alias([
@@ -28,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withSchedule(function ($schedule) {
         // Daily X601 attendance synchronization at 6:00 AM
+        // Automatically marks absent for employees without attendance
         $schedule->command('attendance:sync-x601-daily')
             ->dailyAt('06:00')
             ->withoutOverlapping()

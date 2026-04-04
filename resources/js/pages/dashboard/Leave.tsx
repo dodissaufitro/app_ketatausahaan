@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { LeaveRequest } from '@/types/hris';
+import { LeaveRequest, Employee } from '@/types/hris';
 import { usePermission } from '@/hooks/usePermission';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -58,6 +58,8 @@ export default function LeavePage() {
   const [leaveList, setLeaveList] = useState<LeaveRequest[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -88,9 +90,34 @@ export default function LeavePage() {
     }
   };
 
+  const fetchEmployees = async () => {
+    try {
+      setLoadingEmployees(true);
+      const response = await axios.get('/api/employees');
+      const activeEmployees = response.data.filter((emp: Employee) => emp.status === 'active');
+      setEmployees(activeEmployees);
+      console.log('Employees loaded:', activeEmployees.length);
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+      toast({
+        title: 'Error',
+        description: 'Gagal mengambil data karyawan',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
+
   useEffect(() => {
     fetchLeaves();
   }, [filterStatus]);
+
+  useEffect(() => {
+    if (isAddDialogOpen && canManageLeaves && employees.length === 0) {
+      fetchEmployees();
+    }
+  }, [isAddDialogOpen, canManageLeaves]);
 
   const filteredLeaves = leaveList.filter((leave) => {
     const matchesSearch =
@@ -250,26 +277,45 @@ export default function LeavePage() {
                 Ajukan Cuti
               </Button>
             </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Pengajuan Cuti Baru</DialogTitle>
-              <DialogDescription>
-                Isi form berikut untuk mengajukan cuti
-              </DialogDescription>
-            </DialogHeader>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Pengajuan Cuti Baru</DialogTitle>
+                <DialogDescription>
+                  Isi form berikut untuk mengajukan cuti
+                </DialogDescription>
+              </DialogHeader>
             <div className="space-y-4">
               {canManageLeaves && (
                 <div className="space-y-2">
-                  <Label htmlFor="employee_id">ID Karyawan</Label>
-                  <Input
-                    id="employee_id"
+                  <Label htmlFor="employee_id">Pilih Karyawan</Label>
+                  <Select
                     value={formData.employee_id}
-                    onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                    placeholder="Masukkan ID karyawan (mis: 1, 2, 3)"
-                    type="number"
-                  />
+                    onValueChange={(value) => setFormData({ ...formData, employee_id: value })}
+                  >
+                    <SelectTrigger id="employee_id">
+                      <SelectValue placeholder={loadingEmployees ? "Memuat karyawan..." : "Pilih karyawan"} />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          <span>Diri Sendiri</span>
+                        </div>
+                      </SelectItem>
+                      {Array.isArray(employees) && employees.map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{employee.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {employee.employeeId} - {employee.department}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <p className="text-xs text-muted-foreground">
-                    Kosongkan jika mengajukan untuk diri sendiri
+                    Pilih "Diri Sendiri" jika mengajukan untuk diri sendiri
                   </p>
                 </div>
               )}
@@ -289,7 +335,7 @@ export default function LeavePage() {
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih jenis cuti" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-[300px]">
                     {leaveTypes.map((type) => (
                       <SelectItem key={type.value} value={type.value}>
                         <div className="flex items-center gap-2">
@@ -340,8 +386,8 @@ export default function LeavePage() {
                 </Button>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 

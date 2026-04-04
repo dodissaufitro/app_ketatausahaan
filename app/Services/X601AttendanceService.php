@@ -13,13 +13,13 @@ class X601AttendanceService
     public function __construct()
     {
         // Initialize with values from config
-        $baseUrl = config('services.x601.base_url', '10.1.7.28:80');
+        $baseUrl = config('services.x601.base_url', '103.116.175.218:1121');
         $key = config('services.x601.api_key', '0');
 
         // Parse IP and port from base_url
         $parsedUrl = parse_url($baseUrl);
-        $ip = $parsedUrl['host'] ?? '10.1.7.28';
-        $port = $parsedUrl['port'] ?? 80;
+        $ip = $parsedUrl['host'] ?? '103.116.175.218';
+        $port = $parsedUrl['port'] ?? 1121;
 
         $this->x601Service = new X601Service($ip, $key, $port);
     }
@@ -27,7 +27,7 @@ class X601AttendanceService
     protected function createService(?string $ip, ?string $key, ?int $port = null): X601Service
     {
         if ($ip && $key) {
-            return new X601Service($ip, $key, $port ?? 80);
+            return new X601Service($ip, $key, $port ?? 1121);
         }
 
         return $this->x601Service;
@@ -40,6 +40,7 @@ class X601AttendanceService
     {
         $synced = 0;
         $errors = [];
+        $absentMarked = 0;
 
         $service = $this->createService($ip, $key, $port);
 
@@ -61,9 +62,22 @@ class X601AttendanceService
                         ->first();
 
                     if (!$employee) {
-                        $errors[] = "Employee not found for PIN: {$log['pin']}";
-                        Log::warning("X601 Sync: Employee not found - PIN: {$log['pin']}");
-                        continue;
+                        // Auto-create employee if not found
+                        $employeeName = $log['nama'] ?? "Employee {$log['pin']}";
+                        $employee = Employee::create([
+                            'pin'         => $log['pin'],
+                            'employee_id' => $log['pin'],
+                            'name'        => $employeeName,
+                            'email'       => "employee{$log['pin']}@company.local",
+                            'phone'       => '-',
+                            'department'  => 'Belum Ditentukan',
+                            'position'    => 'Belum Ditentukan',
+                            'join_date'   => now()->format('Y-m-d'),
+                            'status'      => 'active',
+                            'user_id'     => null,
+                            'salary'      => 0,
+                        ]);
+                        Log::info("X601 Sync: Auto-created employee - PIN: {$log['pin']}, Name: {$employeeName}");
                     }
 
                     // Check if attendance already exists
@@ -71,22 +85,28 @@ class X601AttendanceService
                         ->whereDate('date', $log['tanggal'])
                         ->first();
 
-                    $data = [
-                        'employee_id' => $employee->id,
-                        'date' => $log['tanggal'],
-                        'check_in' => $log['checkin'] ?: null,
-                        'check_out' => $log['checkout'] ?: null,
-                        'status' => $this->determineStatus($log),
-                        'work_hours' => $this->calculateWorkHours($log['checkin'], $log['checkout']),
-                        'source' => 'x601',
-                        'machine_name' => $log['nama'] ?? null,
-                    ];
-
                     if ($existing) {
-                        $existing->update($data);
-                        Log::info("X601 Sync: Updated attendance for {$employee->name} on {$log['tanggal']}");
+                        // Update only check_in and check_out, then recalculate status and work_hours
+                        $existing->update([
+                            'check_in' => $log['checkin'] ?: null,
+                            'check_out' => $log['checkout'] ?: null,
+                            'status' => $this->determineStatus($log),
+                            'work_hours' => $this->calculateWorkHours($log['checkin'], $log['checkout']),
+                            'machine_name' => $log['nama'] ?? null,
+                        ]);
+                        Log::info("X601 Sync: Updated check_in/check_out for {$employee->name} on {$log['tanggal']}");
                     } else {
-                        Attendance::create($data);
+                        // Create new attendance record with all data
+                        Attendance::create([
+                            'employee_id' => $employee->id,
+                            'date' => $log['tanggal'],
+                            'check_in' => $log['checkin'] ?: null,
+                            'check_out' => $log['checkout'] ?: null,
+                            'status' => $this->determineStatus($log),
+                            'work_hours' => $this->calculateWorkHours($log['checkin'], $log['checkout']),
+                            'source' => 'x601',
+                            'machine_name' => $log['nama'] ?? null,
+                        ]);
                         Log::info("X601 Sync: Created attendance for {$employee->name} on {$log['tanggal']}");
                     }
 
@@ -98,6 +118,16 @@ class X601AttendanceService
             }
 
             Log::info("X601 Sync Complete: Synced {$synced}, Errors: " . count($errors));
+
+            // Mark absent for all active employees who don't have attendance on the specified date
+            if ($date) {
+                Log::info("X601 Sync: Marking absent for date {$date}");
+                $absentResult = $this->markAbsentForDate($date, true);
+                $absentMarked = $absentResult['marked'];
+                if (!empty($absentResult['errors'])) {
+                    $errors = array_merge($errors, $absentResult['errors']);
+                }
+            }
         } catch (\Exception $e) {
             $errors[] = "Failed to connect to X601 machine: " . $e->getMessage();
             Log::error("X601 Connection Error: " . $e->getMessage());
@@ -105,6 +135,7 @@ class X601AttendanceService
 
         return [
             'synced' => $synced,
+            'absent_marked' => $absentMarked,
             'errors' => $errors,
             'total' => $synced + count($errors)
         ];
@@ -142,6 +173,8 @@ class X601AttendanceService
     {
         $synced = 0;
         $errors = [];
+        $uniqueDates = [];
+        $totalAbsentMarked = 0;
 
         $service = $this->createService($ip, $key, $port);
 
@@ -166,9 +199,22 @@ class X601AttendanceService
                         ->first();
 
                     if (!$employee) {
-                        $errors[] = "Employee not found for PIN: {$log['pin']} (Date: {$log['tanggal']})";
-                        Log::warning("X601 Comprehensive Sync: Employee not found - PIN: {$log['pin']}, Date: {$log['tanggal']}");
-                        continue;
+                        // Auto-create employee if not found
+                        $employeeName = $log['nama'] ?? "Employee {$log['pin']}";
+                        $employee = Employee::create([
+                            'pin'         => $log['pin'],
+                            'employee_id' => $log['pin'],
+                            'name'        => $employeeName,
+                            'email'       => "employee{$log['pin']}@company.local",
+                            'phone'       => '-',
+                            'department'  => 'Belum Ditentukan',
+                            'position'    => 'Belum Ditentukan',
+                            'join_date'   => now()->format('Y-m-d'),
+                            'status'      => 'active',
+                            'user_id'     => null,
+                            'salary'      => 0,
+                        ]);
+                        Log::info("X601 Comprehensive Sync: Auto-created employee - PIN: {$log['pin']}, Name: {$employeeName}");
                     }
 
                     // Check if attendance already exists
@@ -176,23 +222,34 @@ class X601AttendanceService
                         ->whereDate('date', $log['tanggal'])
                         ->first();
 
-                    $data = [
-                        'employee_id' => $employee->id,
-                        'date' => $log['tanggal'],
-                        'check_in' => $log['checkin'] ?: null,
-                        'check_out' => $log['checkout'] ?: null,
-                        'status' => $this->determineStatus($log),
-                        'work_hours' => $this->calculateWorkHours($log['checkin'], $log['checkout']),
-                        'source' => 'x601',
-                        'machine_name' => $log['nama'] ?? null,
-                    ];
-
                     if ($existing) {
-                        $existing->update($data);
-                        Log::info("X601 Comprehensive Sync: Updated attendance for {$employee->name} on {$log['tanggal']}");
+                        // Update only check_in and check_out, then recalculate status and work_hours
+                        $existing->update([
+                            'check_in' => $log['checkin'] ?: null,
+                            'check_out' => $log['checkout'] ?: null,
+                            'status' => $this->determineStatus($log),
+                            'work_hours' => $this->calculateWorkHours($log['checkin'], $log['checkout']),
+                            'machine_name' => $log['nama'] ?? null,
+                        ]);
+                        Log::info("X601 Comprehensive Sync: Updated check_in/check_out for {$employee->name} on {$log['tanggal']}");
                     } else {
-                        Attendance::create($data);
+                        // Create new attendance record with all data
+                        Attendance::create([
+                            'employee_id' => $employee->id,
+                            'date' => $log['tanggal'],
+                            'check_in' => $log['checkin'] ?: null,
+                            'check_out' => $log['checkout'] ?: null,
+                            'status' => $this->determineStatus($log),
+                            'work_hours' => $this->calculateWorkHours($log['checkin'], $log['checkout']),
+                            'source' => 'x601',
+                            'machine_name' => $log['nama'] ?? null,
+                        ]);
                         Log::info("X601 Comprehensive Sync: Created attendance for {$employee->name} on {$log['tanggal']}");
+                    }
+
+                    // Collect unique dates for marking absent later
+                    if (!in_array($log['tanggal'], $uniqueDates)) {
+                        $uniqueDates[] = $log['tanggal'];
                     }
 
                     $synced++;
@@ -203,6 +260,17 @@ class X601AttendanceService
             }
 
             Log::info("X601 Comprehensive Sync Complete: Synced {$synced}, Errors: " . count($errors));
+
+            // Mark absent for all active employees who don't have attendance on each synced date
+            Log::info("X601 Comprehensive Sync: Marking absent for " . count($uniqueDates) . " unique dates");
+            foreach ($uniqueDates as $date) {
+                $absentResult = $this->markAbsentForDate($date, true);
+                $totalAbsentMarked += $absentResult['marked'];
+                if (!empty($absentResult['errors'])) {
+                    $errors = array_merge($errors, $absentResult['errors']);
+                }
+            }
+            Log::info("X601 Comprehensive Sync: Total absent marked across all dates: {$totalAbsentMarked}");
         } catch (\Exception $e) {
             $errors[] = "Failed to connect to X601 machine: " . $e->getMessage();
             Log::error("X601 Comprehensive Connection Error: " . $e->getMessage());
@@ -210,9 +278,151 @@ class X601AttendanceService
 
         return [
             'synced' => $synced,
+            'absent_marked' => $totalAbsentMarked,
+            'dates_processed' => count($uniqueDates),
             'errors' => $errors,
             'total_processed' => $synced + count($errors),
             'message' => 'Comprehensive sync completed'
+        ];
+    }
+
+    /**
+     * Sync employee/user data from X601 machine to employees table.
+     * Creates new employees if they don't exist, updates name if changed.
+     */
+    public function syncUsersFromX601(?string $ip = null, ?string $key = null, ?int $port = null): array
+    {
+        $created = 0;
+        $updated = 0;
+        $skipped = 0;
+        $errors  = [];
+
+        $service = $this->createService($ip, $key, $port);
+
+        try {
+            Log::info("X601 User Sync: Fetching users from machine");
+
+            $users = $service->getUsers();
+
+            Log::info("X601 User Sync: Retrieved " . count($users) . " users");
+
+            foreach ($users as $pin => $name) {
+                try {
+                    // Check if employee with this PIN already exists
+                    $employee = Employee::where('pin', $pin)
+                        ->orWhere('employee_id', $pin)
+                        ->first();
+
+                    if ($employee) {
+                        // Update name if it has changed
+                        if ($employee->name !== $name) {
+                            $employee->update(['name' => $name]);
+                            $updated++;
+                            Log::info("X601 User Sync: Updated name for PIN {$pin}: {$name}");
+                        } else {
+                            $skipped++;
+                        }
+                    } else {
+                        // Create new employee
+                        Employee::create([
+                            'pin'         => $pin,
+                            'employee_id' => $pin,
+                            'name'        => $name,
+                            'email'       => "employee{$pin}@company.local",
+                            'phone'       => '-',
+                            'department'  => 'Belum Ditentukan',
+                            'position'    => 'Belum Ditentukan',
+                            'join_date'   => now()->format('Y-m-d'),
+                            'status'      => 'active',
+                            'user_id'     => null,
+                            'salary'      => 0,
+                        ]);
+                        $created++;
+                        Log::info("X601 User Sync: Created new employee - PIN: {$pin}, Name: {$name}");
+                    }
+                } catch (\Exception $e) {
+                    $errors[] = "Error processing PIN {$pin} ({$name}): " . $e->getMessage();
+                    Log::error("X601 User Sync Error for PIN {$pin}: " . $e->getMessage());
+                }
+            }
+
+            Log::info("X601 User Sync Complete: Created={$created}, Updated={$updated}, Skipped={$skipped}, Errors=" . count($errors));
+        } catch (\Exception $e) {
+            $errors[] = "Failed to connect to X601 machine: " . $e->getMessage();
+            Log::error("X601 User Sync Connection Error: " . $e->getMessage());
+        }
+
+        return [
+            'created' => $created,
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'errors'  => $errors,
+            'total'   => count($users ?? []),
+            'message' => 'User sync completed'
+        ];
+    }
+
+    /**
+     * Mark all active employees who have no attendance record on a given date as absent.
+     * Skips weekends (Saturday=6, Sunday=0) by default.
+     */
+    public function markAbsentForDate(string $date, bool $skipWeekends = true): array
+    {
+        $marked  = 0;
+        $skipped = 0;
+        $errors  = [];
+
+        $dayOfWeek = (int) date('w', strtotime($date));
+        if ($skipWeekends && ($dayOfWeek === 0 || $dayOfWeek === 6)) {
+            Log::info("Mark Absent: Skipping weekend date {$date}");
+            return [
+                'marked'   => 0,
+                'skipped'  => 0,
+                'errors'   => [],
+                'message'  => "Skipped: {$date} is a weekend",
+            ];
+        }
+
+        $employees = Employee::where('status', 'active')->get();
+
+        Log::info("Mark Absent: Processing {$date} for " . $employees->count() . " active employees");
+
+        foreach ($employees as $employee) {
+            try {
+                $exists = Attendance::where('employee_id', $employee->id)
+                    ->whereDate('date', $date)
+                    ->exists();
+
+                if ($exists) {
+                    $skipped++;
+                    continue;
+                }
+
+                Attendance::create([
+                    'employee_id' => $employee->id,
+                    'date'        => $date,
+                    'check_in'    => null,
+                    'check_out'   => null,
+                    'status'      => 'absent',
+                    'work_hours'  => 0,
+                    'source'      => 'system',
+                ]);
+
+                $marked++;
+                Log::info("Mark Absent: Created absent record for {$employee->name} on {$date}");
+            } catch (\Exception $e) {
+                $errors[] = "Error for {$employee->name}: " . $e->getMessage();
+                Log::error("Mark Absent Error for employee {$employee->id} on {$date}: " . $e->getMessage());
+            }
+        }
+
+        Log::info("Mark Absent Complete for {$date}: Marked={$marked}, Skipped={$skipped}, Errors=" . count($errors));
+
+        return [
+            'marked'  => $marked,
+            'skipped' => $skipped,
+            'errors'  => $errors,
+            'message' => "Absent marking completed for {$date}",
         ];
     }
 

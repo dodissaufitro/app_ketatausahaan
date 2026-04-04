@@ -40,15 +40,16 @@ export interface AuthUser extends User {
 }
 
 export interface Attendance {
-  id: string;
+  id: string | null;
   employeeId: string;
   employeeName: string;
   date: string;
   checkIn: string;
   checkOut: string;
-  status: 'present' | 'late' | 'absent' | 'half-day';
+  status: 'present' | 'late' | 'absent' | 'half-day' | 'on-leave' | 'sick-leave' | 'personal-leave' | 'maternity-leave' | 'paternity-leave';
+  leaveType?: 'annual' | 'sick' | 'personal' | 'maternity' | 'paternity' | null;
   workHours: number;
-  source: 'manual' | 'x601';
+  source: 'manual' | 'x601' | 'system' | 'leave';
 }
 
 export interface LeaveRequest {
