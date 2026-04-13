@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Employee, UserRole } from '@/types/hris';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +39,9 @@ import {
   Phone,
   Building,
   Filter,
+  RefreshCw,
+  Users,
+  Link,
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -135,6 +138,12 @@ export default function Employees() {
   const [x601Users, setX601Users] = useState<X601User[]>([]);
   const [loadingX601, setLoadingX601] = useState(false);
   const [syncingX601, setSyncingX601] = useState(false);
+  const [isSyncUsersDialogOpen, setIsSyncUsersDialogOpen] = useState(false);
+  const [syncingUsers, setSyncingUsers] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ linked: number; employee_created: number; user_created: number; details: { action: string; name: string; email: string }[] } | null>(null);
+  const [unlinkedUsers, setUnlinkedUsers] = useState<AvailableUser[]>([]);
+  const [unlinkedEmployees, setUnlinkedEmployees] = useState<{ id: number; employee_id: string; name: string; email: string }[]>([]);
+  const [loadingUnlinkedUsers, setLoadingUnlinkedUsers] = useState(false);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -166,6 +175,7 @@ export default function Employees() {
       const data = response.data.map((emp: any) => ({
         id: emp.id.toString(),
         employeeId: emp.employee_id,
+        userId: emp.user_id ? emp.user_id.toString() : '',
         name: emp.name,
         email: emp.email,
         phone: emp.phone,
@@ -232,9 +242,9 @@ export default function Employees() {
       setLoadingX601(true);
       const response = await axios.get('/api/attendances/fetch-x601/users', {
         params: {
-          ip: '103.116.175.218',
+          ip: '10.1.7.28',
           key: '0',
-          port: 1121,
+          port: 80,
         },
       });
       
@@ -264,9 +274,9 @@ export default function Employees() {
     try {
       setSyncingX601(true);
       const response = await axios.post('/api/attendances/sync-x601/users', {
-        ip: '103.116.175.218',
+        ip: '10.1.7.28',
         key: '0',
-        port: 1121,
+        port: 80,
       });
       
       const result = response.data;
@@ -291,6 +301,39 @@ export default function Employees() {
       });
     } finally {
       setSyncingX601(false);
+    }
+  };
+
+  const openSyncUsersDialog = async () => {
+    setIsSyncUsersDialogOpen(true);
+    setSyncResult(null);
+    setLoadingUnlinkedUsers(true);
+    try {
+      const response = await axios.get('/api/employees/sync-preview');
+      setUnlinkedUsers(response.data.unlinked_users);
+      setUnlinkedEmployees(response.data.unlinked_employees);
+    } catch {
+      setUnlinkedUsers([]);
+      setUnlinkedEmployees([]);
+    } finally {
+      setLoadingUnlinkedUsers(false);
+    }
+  };
+
+  const handleSyncFromUsers = async () => {
+    try {
+      setSyncingUsers(true);
+      const response = await axios.post('/api/employees/sync-from-users');
+      setSyncResult(response.data);
+      await fetchEmployees();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Gagal sinkronisasi user',
+        variant: 'destructive',
+      });
+    } finally {
+      setSyncingUsers(false);
     }
   };
 
@@ -372,6 +415,7 @@ export default function Employees() {
         join_date: formData.join_date,
         status: 'active',
         salary: parseFloat(formData.salary) || 0,
+        user_id: formData.user_id || null,
       });
 
       await fetchEmployees();
@@ -414,7 +458,7 @@ export default function Employees() {
     setEditingEmployee(employee);
     setFormData({
       employee_id: employee.employeeId,
-      user_id: '',
+      user_id: employee.userId || '',
       name: employee.name,
       email: employee.email,
       phone: employee.phone,
@@ -428,6 +472,7 @@ export default function Employees() {
       user_role_id: '',
       create_user: false,
     });
+    fetchAvailableUsers();
     setIsEditDialogOpen(true);
   };
 
@@ -502,8 +547,189 @@ export default function Employees() {
         </div>
       </div>
 
-      {/* Add Employee Dialog */}
-      <div className="flex justify-center">
+      {/* Add Employee Dialog + Sync Users Button */}
+      <div className="flex flex-wrap justify-center gap-4">
+        {/* Sync from Users Button + Dialog */}
+        <Dialog open={isSyncUsersDialogOpen} onOpenChange={setIsSyncUsersDialogOpen}>
+          <DialogTrigger asChild>
+            <Button
+              variant="outline"
+              onClick={openSyncUsersDialog}
+              className="h-14 px-8 border-2 border-emerald-400 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 font-bold transform hover:scale-105 hover:shadow-xl transition-all duration-300 relative overflow-hidden group"
+            >
+              <span className="flex items-center gap-3">
+                <RefreshCw className="h-5 w-5 group-hover:rotate-180 transition-transform duration-500" />
+                <span className="text-lg">Sinkron User &amp; Karyawan</span>
+                {(unlinkedUsers.length + unlinkedEmployees.length) > 0 && !isSyncUsersDialogOpen && (
+                  <span className="bg-emerald-500 text-white text-xs rounded-full px-2 py-0.5">{unlinkedUsers.length + unlinkedEmployees.length}</span>
+                )}
+              </span>
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-xl">
+                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+                  <Users className="h-5 w-5 text-emerald-600" />
+                </div>
+                Sinkronisasi User &amp; Karyawan
+              </DialogTitle>
+              <DialogDescription>
+                Sinkronisasi dua arah: user tanpa karyawan akan dibuatkan data karyawan, dan karyawan tanpa akun user akan dibuatkan akun login (role: user, password default: 12344321).
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto space-y-4 py-2">
+              {/* Result after sync */}
+              {syncResult ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 text-center">
+                      <p className="text-2xl font-bold text-blue-600">{syncResult.linked}</p>
+                      <p className="text-xs text-muted-foreground mt-1 leading-tight">Ditautkan</p>
+                    </div>
+                    <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-3 text-center">
+                      <p className="text-2xl font-bold text-emerald-600">{syncResult.employee_created}</p>
+                      <p className="text-xs text-muted-foreground mt-1 leading-tight">Karyawan Dibuat</p>
+                    </div>
+                    <div className="rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 p-3 text-center">
+                      <p className="text-2xl font-bold text-violet-600">{syncResult.user_created}</p>
+                      <p className="text-xs text-muted-foreground mt-1 leading-tight">Akun User Dibuat</p>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border overflow-hidden">
+                    <div className="bg-muted/50 px-4 py-2 text-sm font-semibold">Detail Hasil</div>
+                    <div className="divide-y max-h-56 overflow-y-auto">
+                      {syncResult.details.map((d, i) => (
+                        <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            d.action === 'linked' ? 'bg-blue-500' :
+                            d.action === 'employee_created' ? 'bg-emerald-500' : 'bg-violet-500'
+                          }`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{d.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{d.email}</p>
+                          </div>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                            d.action === 'linked' ? 'bg-blue-100 text-blue-700' :
+                            d.action === 'employee_created' ? 'bg-emerald-100 text-emerald-700' : 'bg-violet-100 text-violet-700'
+                          }`}>
+                            {d.action === 'linked' ? 'Ditautkan' : d.action === 'employee_created' ? 'Karyawan baru' : 'Akun user baru'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {(syncResult.employee_created > 0 || syncResult.user_created > 0) && (
+                    <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 p-3 text-sm text-amber-700 dark:text-amber-400 flex items-start gap-2">
+                      <span className="flex-shrink-0 mt-0.5">⚠️</span>
+                      <span>
+                        {syncResult.employee_created > 0 && <span>Karyawan baru dibuat dengan data minimal — lengkapi via <strong>Edit</strong>. </span>}
+                        {syncResult.user_created > 0 && <span>Akun user baru dibuat dengan password default: <strong className="font-mono">12344321</strong> — sampaikan ke karyawan untuk segera diubah.</span>}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  {loadingUnlinkedUsers ? (
+                    <div className="flex justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500" />
+                    </div>
+                  ) : (unlinkedUsers.length === 0 && unlinkedEmployees.length === 0) ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                      <p className="font-medium">Semua data sudah tersinkronisasi</p>
+                      <p className="text-sm mt-1">Tidak ada user atau karyawan yang perlu disinkronkan.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Users without employees */}
+                      {unlinkedUsers.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 p-3 text-sm text-emerald-700 dark:text-emerald-400 flex items-start gap-2">
+                            <Link className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                            <span><strong>{unlinkedUsers.length} user</strong> belum punya data karyawan → akan dibuatkan/ditautkan ke karyawan.</span>
+                          </div>
+                          <div className="rounded-xl border overflow-hidden">
+                            <div className="bg-muted/50 px-4 py-2 text-sm font-semibold flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                              User tanpa Karyawan ({unlinkedUsers.length})
+                            </div>
+                            <div className="divide-y max-h-36 overflow-y-auto">
+                              {unlinkedUsers.map((u) => (
+                                <div key={u.id} className="flex items-center gap-3 px-4 py-2">
+                                  <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-xs font-bold text-emerald-600">{u.name.charAt(0).toUpperCase()}</span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm">{u.name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Employees without users */}
+                      {unlinkedEmployees.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-200 p-3 text-sm text-violet-700 dark:text-violet-400 flex items-start gap-2">
+                            <Users className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                            <span><strong>{unlinkedEmployees.length} karyawan</strong> belum punya akun login → akan dibuatkan akun user (role: <strong>user</strong>, password: <strong className="font-mono">12344321</strong>).</span>
+                          </div>
+                          <div className="rounded-xl border overflow-hidden">
+                            <div className="bg-muted/50 px-4 py-2 text-sm font-semibold flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-violet-500 inline-block" />
+                              Karyawan tanpa Akun User ({unlinkedEmployees.length})
+                            </div>
+                            <div className="divide-y max-h-36 overflow-y-auto">
+                              {unlinkedEmployees.map((e) => (
+                                <div key={e.id} className="flex items-center gap-3 px-4 py-2">
+                                  <div className="w-7 h-7 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-xs font-bold text-violet-600">{e.name.charAt(0).toUpperCase()}</span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm">{e.name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{e.email}</p>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground font-mono flex-shrink-0">{e.employee_id}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button variant="outline" onClick={() => { setIsSyncUsersDialogOpen(false); setSyncResult(null); }}>
+                {syncResult ? 'Tutup' : 'Batal'}
+              </Button>
+              {!syncResult && (unlinkedUsers.length > 0 || unlinkedEmployees.length > 0) && (
+                <Button
+                  onClick={handleSyncFromUsers}
+                  disabled={syncingUsers}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  {syncingUsers ? (
+                    <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Menyinkronkan...</>
+                  ) : (
+                    <><RefreshCw className="h-4 w-4 mr-2" />Sinkronkan Sekarang</>
+                  )}
+                </Button>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Employee Dialog */}
         <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
           setIsAddDialogOpen(open);
           if (open) {
@@ -1161,6 +1387,54 @@ export default function Employees() {
                       className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 font-mono text-lg border-2 border-dashed border-emerald-400 mt-2"
                     />
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Link ke User Section */}
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-amber-500 rounded-xl blur opacity-50 group-hover:opacity-75 transition duration-300"></div>
+              <div className="relative bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 transform hover:scale-[1.01] transition-all duration-300 hover:shadow-xl">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-lg">🔗</span>
+                  </div>
+                  Link ke Akun User
+                  <div className="flex-1 h-px bg-gradient-to-r from-orange-400 to-amber-500"></div>
+                </h3>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    👤 Akun Login yang Ditautkan
+                  </Label>
+                  <Select
+                    value={formData.user_id || 'none'}
+                    onValueChange={(value) => setFormData({ ...formData, user_id: value === 'none' ? '' : value })}
+                  >
+                    <SelectTrigger className="h-12 border-2 border-gray-300 dark:border-gray-600 rounded-lg">
+                      <SelectValue placeholder="Pilih akun user..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">
+                        <span className="text-muted-foreground">— Tidak ditautkan —</span>
+                      </SelectItem>
+                      {editingEmployee?.userId && (
+                        <SelectItem value={editingEmployee.userId}>
+                          <span className="text-success font-medium">✓ User saat ini (pertahankan)</span>
+                        </SelectItem>
+                      )}
+                      {availableUsers.map((u) => (
+                        <SelectItem key={u.id} value={String(u.id)}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{u.name}</span>
+                            <span className="text-xs text-muted-foreground">{u.email}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Tautkan karyawan ke akun login agar bisa mengajukan cuti, melihat kehadiran, dan penggajian
+                  </p>
                 </div>
               </div>
             </div>

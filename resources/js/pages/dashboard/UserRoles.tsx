@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useAuth } from '@/contexts/AuthContext';
 import { Plus, Search, Edit, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +36,7 @@ export default function UserRoles() {
   const [isEdit, setIsEdit] = useState(false);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const { toast } = useToast();
+  const { refreshUser } = useAuth();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -122,6 +124,8 @@ export default function UserRoles() {
       }
       handleCloseDialog();
       fetchUserRoles();
+      // Refresh permissions user yang login jika rolenya berubah
+      refreshUser();
     } catch (error: any) {
       toast({
         title: 'Error',

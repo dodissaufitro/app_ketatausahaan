@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -41,14 +41,13 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Karyawan', href: '/dashboard/employees', icon: Users, permission: 'manage_employees' },
   { name: 'Agenda', href: '/dashboard/agenda', icon: Calendar, permission: 'manage_agendas' },
-  { name: 'Kehadiran', href: '/dashboard/attendance', icon: Clock, permission: 'manage_attendances' },
+  { name: 'Kehadiran', href: '/dashboard/attendance', icon: Clock, permissions: ['manage_attendances', 'view_own_attendance'] },
   { name: 'Cuti', href: '/dashboard/leave', icon: Calendar, permissions: ['manage_leaves', 'view_own_leave', 'submit_leave_request'] },
   { name: 'Penggajian', href: '/dashboard/payroll', icon: Wallet, permissions: ['manage_payrolls', 'view_own_payroll'] },
   { name: 'Surat Masuk', href: '/dashboard/incoming-mail', icon: Mail, permission: 'manage_incoming_mails' },
   { name: 'Surat Keluar', href: '/dashboard/outgoing-mail', icon: Send, permission: 'manage_outgoing_mails' },
-  // Public access - no permission required
-  { name: 'Pengadaan', href: '/dashboard/pengadaan', icon: ShoppingCart },
-  { name: 'Dokumen Pengadaan', href: '/dashboard/dokumen-pengadaan-langsung', icon: FileText },
+  { name: 'Pengadaan', href: '/dashboard/pengadaan', icon: ShoppingCart, permission: 'manage_pengadaan' },
+  { name: 'Dokumen Pengadaan', href: '/dashboard/dokumen-pengadaan-langsung', icon: FileText, permission: 'manage_dokumen_pengadaan' },
   { name: 'Angkutan Umum', href: '/dashboard/angkutan-umum', icon: Bus, wednesdayOnly: true },
   { 
     name: 'Manajemen Pengguna',
@@ -66,9 +65,14 @@ const navigation = [
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Refresh permissions setiap navigasi halaman agar perubahan role langsung terlihat
+  useEffect(() => {
+    refreshUser();
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();

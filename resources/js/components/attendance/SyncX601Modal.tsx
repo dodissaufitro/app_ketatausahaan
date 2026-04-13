@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import axios from 'axios';
 import {
   Dialog,
@@ -27,11 +27,12 @@ interface SyncResult {
 
 export function SyncX601Modal({ isOpen, onClose, onSuccess }: SyncX601ModalProps) {
   const [loading, setLoading] = useState(false);
-  const [syncDate, setSyncDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [employeeId, setEmployeeId] = useState<string>('');
-  const [ip, setIp] = useState<string>('103.116.175.218');
+  const [ip, setIp] = useState<string>('10.1.7.28');
   const [key, setKey] = useState<string>('0');
-  const [port, setPort] = useState<number>(1121);
+  const [port, setPort] = useState<number>(80);
   const [result, setResult] = useState<SyncResult | null>(null);
   const { toast } = useToast();
 
@@ -41,11 +42,12 @@ export function SyncX601Modal({ isOpen, onClose, onSuccess }: SyncX601ModalProps
       setResult(null);
 
       const response = await axios.post('/api/attendances/sync-x601/manual', {
-        date: syncDate || null,
+        start_date: startDate || null,
+        end_date: endDate || null,
         employee_id: employeeId || null,
-        ip: ip || '103.116.175.218',
+        ip: ip || '10.1.7.28',
         key: key || '0',
-        port: port || 1121,
+        port: port || 80,
       });
 
       const data = response.data;
@@ -76,7 +78,8 @@ export function SyncX601Modal({ isOpen, onClose, onSuccess }: SyncX601ModalProps
 
   const handleClose = () => {
     setResult(null);
-    setSyncDate(new Date().toISOString().split('T')[0]);
+    setStartDate('');
+    setEndDate('');
     setEmployeeId('');
     onClose();
   };
@@ -94,18 +97,35 @@ export function SyncX601Modal({ isOpen, onClose, onSuccess }: SyncX601ModalProps
         <div className="space-y-4 py-4">
           {!result ? (
             <>
-              <div>
-                <label className="text-sm font-medium">Tanggal (Optional)</label>
-                <Input
-                  type="date"
-                  value={syncDate}
-                  onChange={(e) => setSyncDate(e.target.value)}
-                  className="mt-1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Kosongkan untuk sinkronisasi semua data
-                </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium">Dari Tanggal</label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Sampai Tanggal</label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
               </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                {startDate && endDate
+                  ? startDate === endDate
+                    ? `Sinkron data tanggal ${startDate}`
+                    : `Sinkron data dari ${startDate} sampai ${endDate}`
+                  : startDate
+                    ? `Sinkron data mulai ${startDate} (sampai sekarang)`
+                    : '⚡ Kosong = sinkron semua data (seluruh tanggal)'}
+              </p>
 
               <div>
                 <label className="text-sm font-medium">ID Karyawan (Optional)</label>

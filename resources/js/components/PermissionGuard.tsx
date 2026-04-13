@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
 import { usePermission } from '@/hooks/usePermission';
+import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ShieldAlert } from 'lucide-react';
 
@@ -20,6 +20,16 @@ export function PermissionGuard({
   fallback,
 }: PermissionGuardProps) {
   const { hasPermission, hasRole, hasAllPermissions } = usePermission();
+  const { isRefreshing, isLoading } = useAuth();
+
+  // While permissions are being loaded/refreshed, show spinner instead of Access Denied
+  if (isLoading || isRefreshing) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   // Check role first
   if (role) {

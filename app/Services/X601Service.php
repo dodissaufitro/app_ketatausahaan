@@ -8,7 +8,7 @@ class X601Service
     protected int $port;
     protected string $key;
 
-    public function __construct(string $ip, string $key, int $port = 1121)
+    public function __construct(string $ip, string $key, int $port = 80)
     {
         $this->ip = $ip;
         $this->port = $port;
@@ -134,23 +134,30 @@ class X601Service
             foreach ($dates as $tgl => $jam_list) {
                 sort($jam_list);
                 $checkin  = $jam_list[0];
-                $checkout = end($jam_list);
+                // Jika hanya satu tap ATAU semua entry memiliki timestamp sama
+                // (tap dobel/ghost), checkout dikosongkan — belum pulang
+                $rawCheckout = count($jam_list) > 1 ? end($jam_list) : '';
+                $checkout    = ($rawCheckout && $rawCheckout !== $checkin) ? $rawCheckout : '';
 
                 $jam_masuk  = "07:30:00";
                 $jam_pulang = "16:30:00";
 
-                $real_masuk  = max($checkin, $jam_masuk);
-                $real_pulang = min($checkout, $jam_pulang);
+                if ($checkout) {
+                    $real_masuk  = max($checkin, $jam_masuk);
+                    $real_pulang = min($checkout, $jam_pulang);
+                    $durasi = strtotime($real_pulang) - strtotime($real_masuk);
+                    if ($durasi < 0) $durasi = 0;
+                    $jam_kerja = gmdate("H:i:s", $durasi);
 
-                $durasi = strtotime($real_pulang) - strtotime($real_masuk);
-                if ($durasi < 0) $durasi = 0;
-
-                $jam_kerja = gmdate("H:i:s", $durasi);
-
-                $status = "Tepat Waktu";
-                if ($checkin > $jam_masuk && $checkout < $jam_pulang) $status = "Telat & Pulang Cepat";
-                elseif ($checkin > $jam_masuk) $status = "Terlambat";
-                elseif ($checkout < $jam_pulang) $status = "Pulang Cepat";
+                    $status = "Tepat Waktu";
+                    if ($checkin > $jam_masuk && $checkout < $jam_pulang) $status = "Telat & Pulang Cepat";
+                    elseif ($checkin > $jam_masuk) $status = "Terlambat";
+                    elseif ($checkout < $jam_pulang) $status = "Pulang Cepat";
+                } else {
+                    // Hanya check-in, belum check-out
+                    $jam_kerja = "00:00:00";
+                    $status    = $checkin > $jam_masuk ? "Terlambat" : "Belum Pulang";
+                }
 
                 $finalLogs[] = [
                     'pin'       => $pin,

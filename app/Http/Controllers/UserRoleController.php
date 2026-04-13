@@ -147,6 +147,8 @@ class UserRoleController extends Controller
             'manage_payrolls' => 'Manage Payrolls',
             'manage_incoming_mails' => 'Manage Incoming Mails',
             'manage_outgoing_mails' => 'Manage Outgoing Mails',
+            'manage_pengadaan' => 'Manage Pengadaan',
+            'manage_dokumen_pengadaan' => 'Manage Dokumen Pengadaan',
             'view_dashboard' => 'View Dashboard',
             'view_reports' => 'View Reports',
             'export_data' => 'Export Data',

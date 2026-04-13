@@ -1,4 +1,4 @@
-# 🎨 TAMPILAN DASHBOARD ABSENSI KARYAWAN X601
+﻿# 🎨 TAMPILAN DASHBOARD ABSENSI KARYAWAN X601
 
 ## Preview Layout
 
@@ -11,7 +11,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │ 🔍 FILTER DATA                                              │
 ├─────────────────────────────────────────────────────────────┤
-│  IP Address: [103.116.175.218]  Key: [0]                   │
+│  IP Address: [10.1.7.28]  Key: [0]                   │
 │  Dari Tanggal: [2026-02-27]  Hingga: [2026-03-25]         │
 │                              [ 🔍 Cari Data ]              │
 └─────────────────────────────────────────────────────────────┘
@@ -46,7 +46,7 @@
 
 ### 2. Filter Card
 
-- Input IP Address (default 103.116.175.218)
+- Input IP Address (default 10.1.7.28)
 - Input Comm Key (default 0)
 - Date range picker dengan calendar
 - Search button dengan loading state
@@ -145,7 +145,7 @@ Column Details:
 ```
 1. User akses http://localhost/absensi_karyawan.html
 2. Form muncul dengan default values
-3. IP: 103.116.175.218, Key: 0, no dates
+3. IP: 10.1.7.28, Key: 0, no dates
 4. Empty state: "Masukkan parameter pencarian..."
 ```
 

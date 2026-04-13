@@ -17,10 +17,12 @@ class LeaveController extends Controller
 
         // If user doesn't have manage_leaves permission, only show their own leaves
         if (!$user->hasPermission('manage_leaves')) {
-            // Find employee associated with this user's email
-            $query->whereHas('employee', function ($q) use ($user) {
-                $q->where('email', $user->email);
-            });
+            // Use direct user_id relationship first, fallback to email
+            $ownEmployee = $user->employee ?? \App\Models\Employee::where('email', $user->email)->first();
+            if (!$ownEmployee) {
+                return response()->json([]);
+            }
+            $query->where('employee_id', $ownEmployee->id);
         }
 
         // Filter by status
@@ -75,9 +77,9 @@ class LeaveController extends Controller
             'applied_date' => 'nullable|date',
         ]);
 
-        // If employee_id is not provided, find employee by user email
+        // If employee_id is not provided, find employee by user relationship
         if (!isset($validated['employee_id']) || empty($validated['employee_id'])) {
-            $employee = \App\Models\Employee::where('email', $user->email)->first();
+            $employee = $user->employee ?? \App\Models\Employee::where('email', $user->email)->first();
 
             if (!$employee) {
                 return response()->json([
@@ -112,7 +114,8 @@ class LeaveController extends Controller
 
         // If user doesn't have manage_leaves permission, verify they own this leave
         if (!$user->hasPermission('manage_leaves')) {
-            if (!$leave->employee || $leave->employee->email !== $user->email) {
+            $ownEmployee = $user->employee ?? \App\Models\Employee::where('email', $user->email)->first();
+            if (!$ownEmployee || $leave->employee_id !== $ownEmployee->id) {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
         }

@@ -19,10 +19,12 @@ class PayrollController extends Controller
 
         // If user doesn't have manage_payrolls permission, only show their own payroll
         if (!$user->hasPermission('manage_payrolls')) {
-            // Find employee associated with this user's email
-            $query->whereHas('employee', function ($q) use ($user) {
-                $q->where('email', $user->email);
-            });
+            // Use direct user_id relationship first, fallback to email
+            $ownEmployee = $user->employee ?? \App\Models\Employee::where('email', $user->email)->first();
+            if (!$ownEmployee) {
+                return response()->json([]);
+            }
+            $query->where('employee_id', $ownEmployee->id);
         }
 
         // Filter by month

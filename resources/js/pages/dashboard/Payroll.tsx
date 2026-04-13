@@ -190,7 +190,7 @@ export default function PayrollPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Penggajian</h1>
           <p className="text-muted-foreground">
-            Kelola penggajian bulanan karyawan (Gaji otomatis dari data karyawan)
+            {canManagePayrolls ? 'Kelola penggajian bulanan karyawan (Gaji otomatis dari data karyawan)' : 'Rincian penggajian Anda'}
           </p>
         </div>
         <div className="flex gap-2">
@@ -334,13 +334,13 @@ export default function PayrollPage() {
                   <TableHead className="text-right">Potongan</TableHead>
                   <TableHead className="text-right">Gaji Bersih</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
+                  {canManagePayrolls && <TableHead className="text-right">Aksi</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={canManagePayrolls ? 8 : 7} className="text-center py-8">
                       <div className="flex justify-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                       </div>
@@ -348,7 +348,7 @@ export default function PayrollPage() {
                   </TableRow>
                 ) : filteredPayroll.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={canManagePayrolls ? 8 : 7} className="text-center py-8 text-muted-foreground">
                       Tidak ada data penggajian
                     </TableCell>
                   </TableRow>
@@ -401,30 +401,32 @@ export default function PayrollPage() {
                         {formatCurrency(record.netSalary)}
                       </TableCell>
                       <TableCell>{getStatusBadge(record.status)}</TableCell>
-                      <TableCell className="text-right">
-                      {record.status === 'pending' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-info hover:text-info hover:bg-info/10"
-                          onClick={() => handleProcessPayroll(record.id)}
-                        >
-                          <FileText className="h-4 w-4 mr-1" />
-                          Proses
-                        </Button>
+                      {canManagePayrolls && (
+                        <TableCell className="text-right">
+                          {record.status === 'pending' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-info hover:text-info hover:bg-info/10"
+                              onClick={() => handleProcessPayroll(record.id)}
+                            >
+                              <FileText className="h-4 w-4 mr-1" />
+                              Proses
+                            </Button>
+                          )}
+                          {record.status === 'processed' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-success hover:text-success hover:bg-success/10"
+                              onClick={() => handlePayPayroll(record.id)}
+                            >
+                              <CreditCard className="h-4 w-4 mr-1" />
+                              Bayar
+                            </Button>
+                          )}
+                        </TableCell>
                       )}
-                      {record.status === 'processed' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-success hover:text-success hover:bg-success/10"
-                          onClick={() => handlePayPayroll(record.id)}
-                        >
-                          <CreditCard className="h-4 w-4 mr-1" />
-                          Bayar
-                        </Button>
-                      )}
-                      </TableCell>
                     </TableRow>
                   ))
                 )}

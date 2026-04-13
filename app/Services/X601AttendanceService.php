@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services;
 
 use App\Models\Attendance;
@@ -13,13 +15,13 @@ class X601AttendanceService
     public function __construct()
     {
         // Initialize with values from config
-        $baseUrl = config('services.x601.base_url', '103.116.175.218:1121');
+        $baseUrl = config('services.x601.base_url', '10.1.7.28:80');
         $key = config('services.x601.api_key', '0');
 
         // Parse IP and port from base_url
         $parsedUrl = parse_url($baseUrl);
-        $ip = $parsedUrl['host'] ?? '103.116.175.218';
-        $port = $parsedUrl['port'] ?? 1121;
+        $ip = $parsedUrl['host'] ?? '10.1.7.28';
+        $port = $parsedUrl['port'] ?? 80;
 
         $this->x601Service = new X601Service($ip, $key, $port);
     }
@@ -27,7 +29,7 @@ class X601AttendanceService
     protected function createService(?string $ip, ?string $key, ?int $port = null): X601Service
     {
         if ($ip && $key) {
-            return new X601Service($ip, $key, $port ?? 1121);
+            return new X601Service($ip, $key, $port ?? 80);
         }
 
         return $this->x601Service;
@@ -36,7 +38,7 @@ class X601AttendanceService
     /**
      * Sync attendance data from X601 machine
      */
-    public function syncAttendance(?string $date = null, ?string $employeeId = null, ?string $ip = null, ?string $key = null, ?int $port = null): array
+    public function syncAttendance(?string $startDate = null, ?string $endDate = null, ?string $employeeId = null, ?string $ip = null, ?string $key = null, ?int $port = null): array
     {
         $synced = 0;
         $errors = [];
@@ -45,8 +47,8 @@ class X601AttendanceService
         $service = $this->createService($ip, $key, $port);
 
         try {
-            $tglAwal = $date ?? '';
-            $tglAkhir = $date ?? '';
+            $tglAwal = $startDate ?? '';
+            $tglAkhir = $endDate ?? $tglAwal;
 
             Log::info("X601 Sync: Fetching logs - Date range: {$tglAwal} to {$tglAkhir}");
 
@@ -119,10 +121,26 @@ class X601AttendanceService
 
             Log::info("X601 Sync Complete: Synced {$synced}, Errors: " . count($errors));
 
-            // Mark absent for all active employees who don't have attendance on the specified date
-            if ($date) {
-                Log::info("X601 Sync: Marking absent for date {$date}");
-                $absentResult = $this->markAbsentForDate($date, true);
+            // Mark absent for weekdays in the date range that have no attendance
+            if ($tglAwal && $tglAkhir) {
+                $current   = new \DateTime($tglAwal);
+                $end       = new \DateTime($tglAkhir);
+                $today     = new \DateTime(date('Y-m-d'));
+                // Don't mark absent beyond today
+                if ($end > $today) $end = $today;
+
+                while ($current <= $end) {
+                    $dateStr     = $current->format('Y-m-d');
+                    $absentResult = $this->markAbsentForDate($dateStr, true); // skipWeekends=true
+                    $absentMarked += $absentResult['marked'];
+                    if (!empty($absentResult['errors'])) {
+                        $errors = array_merge($errors, $absentResult['errors']);
+                    }
+                    $current->modify('+1 day');
+                }
+            } elseif ($tglAwal) {
+                // Only start date given
+                $absentResult = $this->markAbsentForDate($tglAwal, true);
                 $absentMarked = $absentResult['marked'];
                 if (!empty($absentResult['errors'])) {
                     $errors = array_merge($errors, $absentResult['errors']);
@@ -454,10 +472,10 @@ class X601AttendanceService
     /**
      * Calculate work hours from check in/out times
      */
-    private function calculateWorkHours(?string $checkIn, ?string $checkOut): ?float
+    private function calculateWorkHours(?string $checkIn, ?string $checkOut): float
     {
         if (!$checkIn || !$checkOut) {
-            return null;
+            return 0;
         }
 
         try {
@@ -465,13 +483,13 @@ class X601AttendanceService
             $end = strtotime($checkOut);
 
             if ($end <= $start) {
-                return null;
+                return 0;
             }
 
             $hours = ($end - $start) / 3600;
             return round($hours, 2);
         } catch (\Exception $e) {
-            return null;
+            return 0;
         }
     }
 }

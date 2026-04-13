@@ -75,7 +75,7 @@ function AppRoutes() {
           </PermissionGuard>
         } />
         <Route path="attendance" element={
-          <PermissionGuard permission="manage_attendances">
+          <PermissionGuard permission={['manage_attendances', 'view_own_attendance']}>
             <Attendance />
           </PermissionGuard>
         } />
@@ -119,9 +119,21 @@ function AppRoutes() {
             <OutgoingMail />
           </PermissionGuard>
         } />
-        <Route path="dokumen-pengadaan-langsung" element={<DokumenPengadaanLangsung />} />
-        <Route path="pengadaan" element={<Pengadaan />} />
-        <Route path="pengadaan/:id/dokumen-checklist" element={<DokumenChecklistPengadaan />} />
+        <Route path="dokumen-pengadaan-langsung" element={
+          <PermissionGuard permission="manage_dokumen_pengadaan">
+            <DokumenPengadaanLangsung />
+          </PermissionGuard>
+        } />
+        <Route path="pengadaan" element={
+          <PermissionGuard permission="manage_pengadaan">
+            <Pengadaan />
+          </PermissionGuard>
+        } />
+        <Route path="pengadaan/:id/dokumen-checklist" element={
+          <PermissionGuard permission="manage_pengadaan">
+            <DokumenChecklistPengadaan />
+          </PermissionGuard>
+        } />
         <Route path="angkutan-umum" element={<AngkutanUmum />} />
         <Route path="angkutan-umum/create" element={<AngkutanUmumCreate />} />
         <Route path="angkutan-umum/:id" element={<AngkutanUmumShow />} />

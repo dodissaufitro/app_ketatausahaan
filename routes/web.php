@@ -83,6 +83,8 @@ Route::prefix('api')->group(function () {
             Route::get('/employees', [EmployeeController::class, 'index']);
             Route::get('/employees/next-id/get', [EmployeeController::class, 'getNextId']);
             Route::get('/employees/available-users/list', [EmployeeController::class, 'getAvailableUsers']);
+            Route::get('/employees/sync-preview', [EmployeeController::class, 'syncPreview']);
+            Route::post('/employees/sync-from-users', [EmployeeController::class, 'syncFromUsers']);
             Route::post('/employees', [EmployeeController::class, 'store']);
             Route::get('/employees/{employee}', [EmployeeController::class, 'show']);
             Route::put('/employees/{employee}', [EmployeeController::class, 'update']);
@@ -106,22 +108,26 @@ Route::prefix('api')->group(function () {
         Route::get('/attendances/export-excel', [AttendanceController::class, 'exportExcel']);
         Route::get('/attendances/export-monthly', [AttendanceController::class, 'exportMonthly']);
 
-        // Attendance Routes - require manage_attendances permission
-        Route::middleware(['permission:manage_attendances'])->group(function () {
+        // Attendance Routes - require manage_attendances or view_own_attendance permission
+        Route::middleware(['permission:manage_attendances,view_own_attendance'])->group(function () {
             Route::get('/attendances', [AttendanceController::class, 'index']);
-            Route::post('/attendances', [AttendanceController::class, 'store']);
             Route::get('/attendances/{attendance}', [AttendanceController::class, 'show']);
+            Route::get('/attendances/fetch-x601/users', [AttendanceController::class, 'fetchUsersFromX601']);
+            Route::get('/attendances/fetch-x601/preview', [AttendanceController::class, 'fetchFromX601']);
+            Route::get('/attendances/connect-x601', [AttendanceController::class, 'connectX601']);
+            Route::get('/x601-dashboard', [AttendanceController::class, 'x601Dashboard']);
+            Route::get('/attendances/monthly-summary', [AttendanceController::class, 'monthlySummary']);
+        });
+
+        // Attendance write/management Routes - require manage_attendances only
+        Route::middleware(['permission:manage_attendances'])->group(function () {
+            Route::post('/attendances', [AttendanceController::class, 'store']);
             Route::put('/attendances/{attendance}', [AttendanceController::class, 'update']);
             Route::delete('/attendances/{attendance}', [AttendanceController::class, 'destroy']);
             Route::post('/attendances/sync-x601/manual', [AttendanceController::class, 'syncFromX601']);
             Route::post('/attendances/sync-x601/comprehensive', [AttendanceController::class, 'comprehensiveSyncFromX601']);
             Route::post('/attendances/sync-x601/users', [AttendanceController::class, 'syncUsersFromX601']);
-            Route::get('/attendances/fetch-x601/users', [AttendanceController::class, 'fetchUsersFromX601']);
             Route::post('/attendances/mark-absent', [AttendanceController::class, 'markAbsent']);
-            Route::get('/attendances/fetch-x601/preview', [AttendanceController::class, 'fetchFromX601']);
-            Route::get('/attendances/connect-x601', [AttendanceController::class, 'connectX601']);
-            Route::get('/x601-dashboard', [AttendanceController::class, 'x601Dashboard']);
-            Route::get('/attendances/monthly-summary', [AttendanceController::class, 'monthlySummary']);
         });
 
         // Leave Routes - allow manage_leaves, view_own_leave, submit_leave_request permissions
@@ -176,7 +182,7 @@ Route::prefix('api')->group(function () {
         });
 
         // Dokumen Pengadaan Langsung Routes
-        Route::prefix('dokumen-pengadaan-langsung')->group(function () {
+        Route::middleware(['permission:manage_dokumen_pengadaan'])->prefix('dokumen-pengadaan-langsung')->group(function () {
             Route::get('/', [DokumenPengadaanLangsungController::class, 'index']);
             Route::get('/pengadaan', [DokumenPengadaanLangsungController::class, 'getPengadaan']);
             Route::post('/', [DokumenPengadaanLangsungController::class, 'store']);
@@ -186,7 +192,7 @@ Route::prefix('api')->group(function () {
         });
 
         // Pengadaan Routes
-        Route::prefix('pengadaan')->group(function () {
+        Route::middleware(['permission:manage_pengadaan'])->prefix('pengadaan')->group(function () {
             Route::get('/', [PengadaanController::class, 'index']);
             Route::get('/users', [PengadaanController::class, 'getUsers']);
             Route::post('/', [PengadaanController::class, 'store']);

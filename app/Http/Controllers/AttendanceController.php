@@ -22,11 +22,23 @@ class AttendanceController extends Controller
      */
     public function index(Request $request)
     {
+        $user = $request->user();
+        $canManageAll = $user->hasPermission('manage_attendances');
+
         // Determine the date to display (default to today)
         $date = $request->has('date') ? $request->date : now()->format('Y-m-d');
 
-        // Get all active employees
-        $employees = Employee::where('status', 'active')->get();
+        // If user only has view_own_attendance, filter to their own employee record
+        if (!$canManageAll) {
+            $ownEmployee = $user->employee ?? \App\Models\Employee::where('email', $user->email)->first();
+            if (!$ownEmployee) {
+                return response()->json([]);
+            }
+            $employees = collect([$ownEmployee]);
+        } else {
+            // Get all active employees
+            $employees = Employee::where('status', 'active')->get();
+        }
 
         // Get attendance records for the specified date
         $attendanceQuery = Attendance::with('employee')
@@ -161,7 +173,7 @@ class AttendanceController extends Controller
      */
     public function x601Dashboard(Request $request)
     {
-        $IP = $request->get('ip', '103.116.175.218');
+        $IP = $request->get('ip', '10.1.7.28');
         $Key = $request->get('key', '0');
         $tgl_awal = $request->get('tgl_awal', '');
         $tgl_akhir = $request->get('tgl_akhir', '');
@@ -271,19 +283,21 @@ class AttendanceController extends Controller
     public function syncFromX601(Request $request, X601AttendanceService $service)
     {
         $validated = $request->validate([
-            'date' => 'nullable|date_format:Y-m-d',
+            'start_date' => 'nullable|date_format:Y-m-d',
+            'end_date' => 'nullable|date_format:Y-m-d',
             'employee_id' => 'nullable|string',
             'ip' => 'nullable|string',
             'key' => 'nullable|string',
             'port' => 'nullable|integer',
         ]);
 
-        $ip = $validated['ip'] ?? '103.116.175.218';
+        $ip = $validated['ip'] ?? '10.1.7.28';
         $key = $validated['key'] ?? config('services.x601.api_key', '0');
-        $port = $validated['port'] ?? 1121;
+        $port = $validated['port'] ?? 80;
 
         $result = $service->syncAttendance(
-            $validated['date'] ?? null,
+            $validated['start_date'] ?? null,
+            $validated['end_date'] ?? null,
             $validated['employee_id'] ?? null,
             $ip,
             $key,
@@ -310,9 +324,9 @@ class AttendanceController extends Controller
             'port' => 'nullable|integer',
         ]);
 
-        $ip = $validated['ip'] ?? '103.116.175.218';
+        $ip = $validated['ip'] ?? '10.1.7.28';
         $key = $validated['key'] ?? config('services.x601.api_key', '0');
-        $port = $validated['port'] ?? 1121;
+        $port = $validated['port'] ?? 80;
 
         $data = $service->fetchFromMachine(
             $validated['date'] ?? null,
@@ -330,7 +344,7 @@ class AttendanceController extends Controller
      */
     public function connectX601(Request $request)
     {
-        $ipParam = $request->get('ip', '103.116.175.218');
+        $ipParam = $request->get('ip', '10.1.7.28');
         $Key = $request->get('key', '0');
         $tgl_awal = $request->get('tgl_awal', '');
         $tgl_akhir = $request->get('tgl_akhir', '');
@@ -341,7 +355,7 @@ class AttendanceController extends Controller
             $port = (int) $port;
         } else {
             $IP = $ipParam;
-            $port = 1121;
+            $port = 80;
         }
 
         try {
@@ -600,9 +614,9 @@ class AttendanceController extends Controller
             'port' => 'nullable|integer',
         ]);
 
-        $ip = $validated['ip'] ?? '103.116.175.218';
+        $ip = $validated['ip'] ?? '10.1.7.28';
         $key = $validated['key'] ?? config('services.x601.api_key', '0');
-        $port = $validated['port'] ?? 1121;
+        $port = $validated['port'] ?? 80;
 
         $result = $service->syncAllAttendance(
             $validated['employee_id'] ?? null,
@@ -720,9 +734,9 @@ class AttendanceController extends Controller
             'port' => 'nullable|integer',
         ]);
 
-        $ip = $validated['ip'] ?? '103.116.175.218';
+        $ip = $validated['ip'] ?? '10.1.7.28';
         $key = $validated['key'] ?? '0';
-        $port = $validated['port'] ?? 1121;
+        $port = $validated['port'] ?? 80;
 
         try {
             $x601Service = new X601Service($ip, $key, $port);

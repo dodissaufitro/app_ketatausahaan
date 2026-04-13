@@ -33,6 +33,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { SyncX601Modal } from '@/components/attendance/SyncX601Modal';
 import { MonthlySummaryModal } from '@/components/attendance/MonthlySummaryModal';
+import { usePermission } from '@/hooks/usePermission';
 import {
   Search,
   Calendar,
@@ -121,6 +122,8 @@ export default function AttendancePage() {
   const [downloadingExcel, setDownloadingExcel] = useState(false);
   
   const { toast } = useToast();
+  const { hasPermission } = usePermission();
+  const canManageAttendances = hasPermission('manage_attendances');
 
   // ====== FETCH DATA ======
   const fetchAttendances = async () => {
@@ -479,12 +482,12 @@ export default function AttendancePage() {
           <Button variant="outline" onClick={() => setMonthlySummaryModalOpen(true)} className="gap-2">
             <BarChart3 className="h-4 w-4" /> Rangkuman Bulanan
           </Button>
-          <Button variant="outline" onClick={() => setSyncModalOpen(true)} className="gap-2">
-            <RefreshCw className="h-4 w-4" /> Sinkron X601
-          </Button>
-          <Button variant="outline" onClick={handleExport}>
-            <Download className="h-4 w-4 mr-2" /> Export Data
-          </Button>
+          {canManageAttendances && (
+            <Button variant="outline" onClick={() => setSyncModalOpen(true)} className="gap-2">
+              <RefreshCw className="h-4 w-4" /> Sinkron X601
+            </Button>
+          )}
+         
         </div>
       </div>
 

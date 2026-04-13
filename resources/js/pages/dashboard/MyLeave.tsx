@@ -211,7 +211,7 @@ export default function MyLeavePage() {
               Ajukan Cuti Baru
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Pengajuan Cuti Baru</DialogTitle>
               <DialogDescription>

@@ -25,6 +25,15 @@ class DatabaseSeeder extends Seeder
         // Seed Agendas
         $this->call([
             AgendaSeeder::class,
+            AttendanceSeeder::class,
+            EmployeeSeeder::class,
+            LeaveSeeder::class,
+            UserRoleSeeder::class,
+            SuperAdminSeeder::class,
+            LeaveAttendanceExampleSeeder::class,
+            TestUserDataSeeder::class,
+            PayrollSeeder::class,
+            OutGoingMailSeeder::class,
         ]);
     }
 }

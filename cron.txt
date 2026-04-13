@@ -1,2 +1,6 @@
 //menjalankan sinkron data daily
 php artisan attendance:sync-x601-daily -v
+
+
+//
+php artisan db:seed

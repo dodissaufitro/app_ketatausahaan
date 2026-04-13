@@ -16,7 +16,7 @@ class SyncX601Users extends Command
     protected $signature = 'x601:sync-users
                             {--ip= : IP address mesin X601 (default dari config)}
                             {--key= : Communication key (default dari config)}
-                            {--port= : Port mesin X601 (default 1121)}';
+                            {--port= : Port mesin X601 (default 80)}';
 
     /**
      * The console command description.

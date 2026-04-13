@@ -189,8 +189,8 @@ export default function LeavePage() {
         applied_date: new Date().toISOString().split('T')[0],
       };
       
-      // Only include employee_id if user can manage leaves (admin)
-      if (canManageLeaves && formData.employee_id) {
+      // Only include employee_id if user can manage leaves (admin) and selected a specific employee
+      if (canManageLeaves && formData.employee_id && formData.employee_id !== 'self') {
         payload.employee_id = formData.employee_id;
       }
       
@@ -277,7 +277,7 @@ export default function LeavePage() {
                 Ajukan Cuti
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Pengajuan Cuti Baru</DialogTitle>
                 <DialogDescription>
@@ -296,7 +296,7 @@ export default function LeavePage() {
                       <SelectValue placeholder={loadingEmployees ? "Memuat karyawan..." : "Pilih karyawan"} />
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
-                      <SelectItem value="">
+                      <SelectItem value="self">
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4" />
                           <span>Diri Sendiri</span>
@@ -320,10 +320,14 @@ export default function LeavePage() {
                 </div>
               )}
               {!canManageLeaves && (
-                <div className="rounded-lg bg-muted p-3">
-                  <p className="text-sm text-muted-foreground">
-                    Mengajukan cuti untuk: <span className="font-medium text-foreground">{user?.name}</span>
-                  </p>
+                <div className="space-y-2">
+                  <Label>Karyawan</Label>
+                  <Input
+                    value={(user as any)?.employee?.name || user?.name || ''}
+                    disabled
+                    className="bg-muted cursor-not-allowed"
+                  />
+                  <p className="text-xs text-muted-foreground">Pengajuan atas nama Anda sendiri</p>
                 </div>
               )}
               <div className="space-y-2">

@@ -21,6 +21,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isRefreshing: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -41,6 +42,7 @@ axios.defaults.withCredentials = true;
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     // Check for existing session from backend
@@ -51,9 +53,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await axios.get('/api/user');
       if (response.data.user) {
-        console.log('[AuthContext] User loaded:', response.data.user);
-        console.log('[AuthContext] Permissions:', response.data.user.permissions);
         setUser(response.data.user);
+      } else {
+        setUser(null);
       }
     } catch (error) {
       console.log('Not authenticated');
@@ -64,7 +66,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      // Attempt login
       const response = await axios.post('/login', {
         email,
         password,
@@ -98,12 +99,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshUser = async () => {
-    console.log('[AuthContext] Refreshing user data...');
-    await checkAuth();
+    setIsRefreshing(true);
+    try {
+      const response = await axios.get('/api/user');
+      if (response.data.user) {
+        setUser(response.data.user);
+      }
+    } catch (error) {
+      console.log('Refresh failed');
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, isRefreshing, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
