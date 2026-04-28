@@ -57,15 +57,15 @@ export default function Login() {
             <div className="p-3 rounded-xl bg-sidebar-primary/20 backdrop-blur-sm">
               <Building2 className="h-10 w-10" />
             </div>
-            <span className="text-3xl font-bold">HRIS Pro</span>
+            <span className="text-3xl font-bold">SIK</span>
           </div>
           
           <h1 className="text-4xl font-bold leading-tight mb-4">
-            Kelola SDM Perusahaan<br />dengan Mudah & Efisien
+            Sistem Informasi Ketatausahaan
           </h1>
           
           <p className="text-lg text-sidebar-foreground/80 mb-8 max-w-md">
-            Sistem Manajemen Sumber Daya Manusia terintegrasi untuk mengelola karyawan, kehadiran, cuti, dan penggajian dalam satu platform.
+            Dirancang untuk mendukung pengelolaan surat masuk, disposisi, serta administrasi kepegawaian secara efektif, transparan, dan terdokumentasi dengan baik.  
           </p>
           
           <div className="grid grid-cols-2 gap-4 max-w-md">
@@ -163,13 +163,13 @@ export default function Login() {
                 </Button>
               </form>
 
-              <div className="mt-6 p-4 rounded-lg bg-muted">
+              {/* <div className="mt-6 p-4 rounded-lg bg-muted">
                 <p className="text-sm text-muted-foreground mb-2 font-medium">Demo Credentials:</p>
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <p><span className="font-medium">Admin:</span> admin@company.com / admin123</p>
                   <p><span className="font-medium">HR:</span> hr@company.com / hr123</p>
                 </div>
-              </div>
+              </div> */}
             </CardContent>
           </Card>
         </div>
