@@ -42,6 +42,10 @@ import {
   RefreshCw,
   Users,
   Link,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -144,6 +148,11 @@ export default function Employees() {
   const [unlinkedUsers, setUnlinkedUsers] = useState<AvailableUser[]>([]);
   const [unlinkedEmployees, setUnlinkedEmployees] = useState<{ id: number; employee_id: string; name: string; email: string }[]>([]);
   const [loadingUnlinkedUsers, setLoadingUnlinkedUsers] = useState(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -242,7 +251,7 @@ export default function Employees() {
       setLoadingX601(true);
       const response = await axios.get('/api/attendances/fetch-x601/users', {
         params: {
-          ip: '10.1.7.28',
+          ip: '10.88.125.230',
           key: '0',
           port: 80,
         },
@@ -274,7 +283,7 @@ export default function Employees() {
     try {
       setSyncingX601(true);
       const response = await axios.post('/api/attendances/sync-x601/users', {
-        ip: '10.1.7.28',
+        ip: '10.88.125.230',
         key: '0',
         port: 80,
       });
@@ -348,6 +357,12 @@ export default function Employees() {
       filterDepartment === 'all' || employee.department === filterDepartment;
     return matchesSearch && matchesDepartment;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / itemsPerPage));
+  const paginatedEmployees = filteredEmployees.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const handleAddEmployee = async () => {
     try {
@@ -1159,7 +1174,7 @@ export default function Employees() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEmployees.map((employee) => (
+                {paginatedEmployees.map((employee) => (
                   <TableRow key={employee.id} className="hover:bg-muted/50">
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -1210,6 +1225,68 @@ export default function Employees() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination */}
+          {filteredEmployees.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Baris per halaman:</span>
+                <Select
+                  value={itemsPerPage.toString()}
+                  onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); }}
+                >
+                  <SelectTrigger className="h-8 w-16">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span>
+                  {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredEmployees.length)} dari {filteredEmployees.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                  .reduce<(number | '...')[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...');
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((item, idx) =>
+                    item === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="px-2 text-muted-foreground">…</span>
+                    ) : (
+                      <Button
+                        key={item}
+                        variant={currentPage === item ? 'default' : 'outline'}
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setCurrentPage(item as number)}
+                      >
+                        {item}
+                      </Button>
+                    )
+                  )}
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}>
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

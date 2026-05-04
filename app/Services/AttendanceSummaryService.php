@@ -123,9 +123,9 @@ class AttendanceSummaryService
         $stats['average_work_hours'] = $presentDays > 0 ? round($totalWorkHours / $presentDays, 2) : 0;
 
         return [
-            'employee_id' => $employee->employee_id,
+            'id'           => $employee->id,
+            'employee_id'  => $employee->employee_id,
             'employee_name' => $employee->name,
-            'machine_name' => $attendances->first()?->machine_name ?? $employee->name,
             'department' => $employee->department,
             'position' => $employee->position,
             'stats' => $stats,

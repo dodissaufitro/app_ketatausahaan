@@ -15,12 +15,12 @@ class X601AttendanceService
     public function __construct()
     {
         // Initialize with values from config
-        $baseUrl = config('services.x601.base_url', '10.1.7.28:80');
+        $baseUrl = config('services.x601.base_url', '10.88.125.230:80');
         $key = config('services.x601.api_key', '0');
 
         // Parse IP and port from base_url
         $parsedUrl = parse_url($baseUrl);
-        $ip = $parsedUrl['host'] ?? '10.1.7.28';
+        $ip = $parsedUrl['host'] ?? '10.88.125.230';
         $port = $parsedUrl['port'] ?? 80;
 
         $this->x601Service = new X601Service($ip, $key, $port);
@@ -63,6 +63,15 @@ class X601AttendanceService
                         ->orWhere('pin', $log['pin'])
                         ->first();
 
+                    // Fallback: match by name if not found by PIN
+                    if (!$employee && !empty($log['nama']) && $log['nama'] !== 'Tidak Diketahui') {
+                        $employee = Employee::where('name', $log['nama'])->first();
+                        if ($employee) {
+                            $employee->update(['pin' => $log['pin']]);
+                            Log::info("X601 Sync: Matched employee '{$employee->name}' by name, updated PIN to {$log['pin']}");
+                        }
+                    }
+
                     if (!$employee) {
                         // Auto-create employee if not found
                         $employeeName = $log['nama'] ?? "Employee {$log['pin']}";
@@ -88,15 +97,18 @@ class X601AttendanceService
                         ->first();
 
                     if ($existing) {
-                        // Update only check_in and check_out, then recalculate status and work_hours
+                        // check_in: jangan timpa jika sudah ada
+                        // check_out: selalu update dengan tap terakhir dari mesin
+                        $newCheckIn  = $existing->check_in ?? ($log['checkin'] ?: null);
+                        $newCheckOut = $log['checkout'] ?: $existing->check_out;
                         $existing->update([
-                            'check_in' => $log['checkin'] ?: null,
-                            'check_out' => $log['checkout'] ?: null,
-                            'status' => $this->determineStatus($log),
-                            'work_hours' => $this->calculateWorkHours($log['checkin'], $log['checkout']),
-                            'machine_name' => $log['nama'] ?? null,
+                            'check_in'    => $newCheckIn,
+                            'check_out'   => $newCheckOut,
+                            'status'      => $this->determineStatus($log),
+                            'work_hours'  => $this->calculateWorkHours($newCheckIn, $newCheckOut),
+                            'machine_name' => $existing->machine_name ?? ($log['nama'] ?? null),
                         ]);
-                        Log::info("X601 Sync: Updated check_in/check_out for {$employee->name} on {$log['tanggal']}");
+                        Log::info("X601 Sync: Updated for {$employee->name} on {$log['tanggal']}");
                     } else {
                         // Create new attendance record with all data
                         Attendance::create([
@@ -216,6 +228,15 @@ class X601AttendanceService
                         ->orWhere('pin', $log['pin'])
                         ->first();
 
+                    // Fallback: match by name if not found by PIN
+                    if (!$employee && !empty($log['nama']) && $log['nama'] !== 'Tidak Diketahui') {
+                        $employee = Employee::where('name', $log['nama'])->first();
+                        if ($employee) {
+                            $employee->update(['pin' => $log['pin']]);
+                            Log::info("X601 Comprehensive Sync: Matched employee '{$employee->name}' by name, updated PIN to {$log['pin']}");
+                        }
+                    }
+
                     if (!$employee) {
                         // Auto-create employee if not found
                         $employeeName = $log['nama'] ?? "Employee {$log['pin']}";
@@ -241,15 +262,18 @@ class X601AttendanceService
                         ->first();
 
                     if ($existing) {
-                        // Update only check_in and check_out, then recalculate status and work_hours
+                        // check_in: jangan timpa jika sudah ada
+                        // check_out: selalu update dengan tap terakhir dari mesin
+                        $newCheckIn  = $existing->check_in ?? ($log['checkin'] ?: null);
+                        $newCheckOut = $log['checkout'] ?: $existing->check_out;
                         $existing->update([
-                            'check_in' => $log['checkin'] ?: null,
-                            'check_out' => $log['checkout'] ?: null,
-                            'status' => $this->determineStatus($log),
-                            'work_hours' => $this->calculateWorkHours($log['checkin'], $log['checkout']),
-                            'machine_name' => $log['nama'] ?? null,
+                            'check_in'    => $newCheckIn,
+                            'check_out'   => $newCheckOut,
+                            'status'      => $this->determineStatus($log),
+                            'work_hours'  => $this->calculateWorkHours($newCheckIn, $newCheckOut),
+                            'machine_name' => $existing->machine_name ?? ($log['nama'] ?? null),
                         ]);
-                        Log::info("X601 Comprehensive Sync: Updated check_in/check_out for {$employee->name} on {$log['tanggal']}");
+                        Log::info("X601 Comprehensive Sync: Updated for {$employee->name} on {$log['tanggal']}");
                     } else {
                         // Create new attendance record with all data
                         Attendance::create([
@@ -324,12 +348,25 @@ class X601AttendanceService
 
             Log::info("X601 User Sync: Retrieved " . count($users) . " users");
 
-            foreach ($users as $pin => $name) {
+            foreach ($users as $internalPin => $info) {
+                // Support both old format (string) and new format (array with name+pin2)
+                $name = is_array($info) ? $info['name'] : $info;
+                $pin  = is_array($info) ? $info['pin2'] : $internalPin;
+
                 try {
                     // Check if employee with this PIN already exists
                     $employee = Employee::where('pin', $pin)
                         ->orWhere('employee_id', $pin)
                         ->first();
+
+                    // Fallback: match by name if not found by PIN
+                    if (!$employee) {
+                        $employee = Employee::where('name', $name)->first();
+                        if ($employee) {
+                            $employee->update(['pin' => $pin]);
+                            Log::info("X601 User Sync: Matched employee '{$name}' by name, updated PIN to {$pin}");
+                        }
+                    }
 
                     if ($employee) {
                         // Update name if it has changed
@@ -377,6 +414,90 @@ class X601AttendanceService
             'errors'  => $errors,
             'total'   => count($users ?? []),
             'message' => 'User sync completed'
+        ];
+    }
+
+    /**
+     * Sync ONLY checkout data from X601 machine for a given date.
+     * Only updates check_out on existing attendance records — never creates new records
+     * and never overwrites check_in.
+     */
+    public function syncCheckoutOnly(string $date, ?string $ip = null, ?string $key = null, ?int $port = null): array
+    {
+        $updated = 0;
+        $skipped = 0;
+        $errors  = [];
+
+        $service = $this->createService($ip, $key, $port);
+
+        try {
+            Log::info("X601 Checkout Sync: Fetching logs for date {$date}");
+
+            $logs = $service->getLogs($date, $date);
+
+            Log::info("X601 Checkout Sync: Retrieved " . count($logs) . " log entries for {$date}");
+
+            foreach ($logs as $log) {
+                try {
+                    // Skip if no checkout data from machine
+                    if (empty($log['checkout'])) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Find employee
+                    $employee = Employee::where('employee_id', $log['pin'])
+                        ->orWhere('pin', $log['pin'])
+                        ->first();
+
+                    if (!$employee && !empty($log['nama']) && $log['nama'] !== 'Tidak Diketahui') {
+                        $employee = Employee::where('name', $log['nama'])->first();
+                    }
+
+                    if (!$employee) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Only update EXISTING records
+                    $existing = Attendance::where('employee_id', $employee->id)
+                        ->whereDate('date', $log['tanggal'])
+                        ->first();
+
+                    if (!$existing) {
+                        $skipped++;
+                        Log::info("X601 Checkout Sync: No existing record for {$employee->name} on {$log['tanggal']}, skip");
+                        continue;
+                    }
+
+                    $checkIn  = $existing->check_in;
+                    $checkOut = $log['checkout'];
+
+                    $existing->update([
+                        'check_out'  => $checkOut,
+                        'work_hours' => $this->calculateWorkHours($checkIn, $checkOut),
+                        'status'     => $checkIn ? $this->determineStatus($log) : $existing->status,
+                    ]);
+
+                    $updated++;
+                    Log::info("X601 Checkout Sync: Updated check_out for {$employee->name} on {$log['tanggal']} → {$checkOut}");
+                } catch (\Exception $e) {
+                    $errors[] = "Error processing PIN {$log['pin']}: " . $e->getMessage();
+                    Log::error("X601 Checkout Sync Error for PIN {$log['pin']}: " . $e->getMessage());
+                }
+            }
+
+            Log::info("X601 Checkout Sync Complete: Updated={$updated}, Skipped={$skipped}, Errors=" . count($errors));
+        } catch (\Exception $e) {
+            $errors[] = "Failed to connect to X601 machine: " . $e->getMessage();
+            Log::error("X601 Checkout Sync Connection Error: " . $e->getMessage());
+        }
+
+        return [
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'errors'  => $errors,
+            'date'    => $date,
         ];
     }
 

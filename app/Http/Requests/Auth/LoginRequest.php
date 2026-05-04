@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Services\LoginAttemptService;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
@@ -17,6 +18,14 @@ class LoginRequest extends FormRequest
     public function authorize(): bool
     {
         return true;
+    }
+    
+    /**
+     * Get LoginAttemptService instance
+     */
+    protected function getLoginAttemptService(): LoginAttemptService
+    {
+        return app(LoginAttemptService::class);
     }
 
     /**
@@ -42,14 +51,40 @@ class LoginRequest extends FormRequest
         $this->ensureIsNotRateLimited();
 
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
+            // Record failed attempt
+            $result = $this->getLoginAttemptService()->recordFailedAttempt(
+                $this->session()->getId(),
+                $this->input('email'),
+                $this->ip()
+            );
+
+            if ($result['blocked']) {
+                // User is now blocked
+                $message = $this->getLoginAttemptService()->getBlockMessage(
+                    $result['block_level'],
+                    $result['remaining_minutes']
+                );
+
+                throw ValidationException::withMessages([
+                    'email' => $message,
+                ]);
+            }
+
+            // Not blocked yet, show remaining attempts
+            $message = 'Email atau password salah.';
+            if ($result['remaining_attempts'] > 0) {
+                $message .= " Sisa percobaan: {$result['remaining_attempts']} kali.";
+            }
 
             throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
+                'email' => $message,
             ]);
         }
 
-        RateLimiter::clear($this->throttleKey());
+        // Clear attempts on successful login
+        $this->getLoginAttemptService()->clearAttempts(
+            $this->session()->getId()
+        );
     }
 
     /**
@@ -59,20 +94,22 @@ class LoginRequest extends FormRequest
      */
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
-            return;
+        $blockStatus = $this->getLoginAttemptService()->isBlocked(
+            $this->session()->getId()
+        );
+
+        if ($blockStatus['blocked']) {
+            event(new Lockout($this));
+
+            $message = $this->getLoginAttemptService()->getBlockMessage(
+                $blockStatus['level'],
+                $blockStatus['remaining_minutes']
+            );
+
+            throw ValidationException::withMessages([
+                'email' => $message,
+            ]);
         }
-
-        event(new Lockout($this));
-
-        $seconds = RateLimiter::availableIn($this->throttleKey());
-
-        throw ValidationException::withMessages([
-            'email' => trans('auth.throttle', [
-                'seconds' => $seconds,
-                'minutes' => ceil($seconds / 60),
-            ]),
-        ]);
     }
 
     /**

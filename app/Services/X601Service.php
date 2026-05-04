@@ -42,28 +42,123 @@ class X601Service
             throw new \Exception("Invalid response from X601 machine. Response: " . substr($buffer, 0, 200));
         }
 
+        \Illuminate\Support\Facades\Log::debug("X601 GetUserInfo XML sample (first 2000): " . substr($buffer, 0, 2000));
+
         preg_match_all('/<Row[^>]*>(.*?)<\/Row>/s', $buffer, $rows);
         if (!empty($rows[1])) {
-            foreach ($rows[1] as $row) {
+            foreach ($rows[1] as $rowIndex => $row) {
                 preg_match('/<PIN>(.*?)<\/PIN>/', $row, $pin);
                 preg_match('/<Name>(.*?)<\/Name>/', $row, $name);
-                $PIN  = trim($pin[1] ?? '');
-                $Name = trim($name[1] ?? 'Tanpa Nama');
-                if ($PIN !== '') $users[$PIN] = $Name;
+                preg_match('/<PIN2>(.*?)<\/PIN2>/', $row, $pin2);
+                $internalPin = trim(html_entity_decode($pin[1] ?? ''));
+                $Name        = trim(html_entity_decode($name[1] ?? 'Tanpa Nama'));
+                $PIN2        = trim(html_entity_decode($pin2[1] ?? ''));
+                // Use PIN2 as actual employee PIN if available and valid, otherwise fall back to internal PIN
+                $actualPin   = ($PIN2 !== '' && $PIN2 !== '0') ? $PIN2 : $internalPin;
+                if ($internalPin !== '') {
+                    // Map internal PIN → ['name', 'pin2'] for use in getLogs()
+                    $users[$internalPin] = ['name' => $Name, 'pin2' => $actualPin];
+                    if ($rowIndex < 30) {
+                        preg_match_all('/<(\w+)>(.*?)<\/\1>/s', $row, $allFields, PREG_SET_ORDER);
+                        $fieldStr = implode(', ', array_map(fn($f) => $f[1].'='.trim($f[2]), $allFields));
+                        \Illuminate\Support\Facades\Log::debug("X601 User Row[{$rowIndex}]: {$fieldStr} → actualPin={$actualPin}");
+                    }
+                }
             }
         }
 
         return $users;
     }
 
+    /**
+     * Returns raw parsed data from the machine for debugging purposes.
+     * Shows exactly what XML fields are returned per row.
+     */
+    public function getRawDebug(): array
+    {
+        $result = ['users_raw' => [], 'attlog_raw' => [], 'users_xml_sample' => '', 'attlog_xml_sample' => ''];
+
+        // Raw user info
+        try {
+            $connect = @fsockopen($this->ip, $this->port, $errno, $errstr, 10);
+            if ($connect) {
+                $soap = '<?xml version="1.0"?><GetUserInfo><ArgComKey>' . $this->key . '</ArgComKey><Arg></Arg></GetUserInfo>';
+                $nl   = "\r\n";
+                fputs($connect, "POST /iWsService HTTP/1.0" . $nl);
+                fputs($connect, "Content-Type: text/xml" . $nl);
+                fputs($connect, "Content-Length: " . strlen($soap) . $nl . $nl);
+                fputs($connect, $soap . $nl);
+                $buf = '';
+                while (!feof($connect)) $buf .= fgets($connect, 1024);
+                fclose($connect);
+
+                $result['users_xml_sample'] = substr($buf, 0, 2000);
+
+                preg_match_all('/<Row[^>]*>(.*?)<\/Row>/s', $buf, $rows);
+                foreach (($rows[1] ?? []) as $row) {
+                    // Capture ALL XML tags in the row for inspection
+                    preg_match_all('/<(\w+)>(.*?)<\/\1>/s', $row, $fields, PREG_SET_ORDER);
+                    $parsed = [];
+                    foreach ($fields as $f) {
+                        $parsed[$f[1]] = trim(html_entity_decode($f[2]));
+                    }
+                    $result['users_raw'][] = $parsed;
+                }
+            }
+        } catch (\Exception $e) {
+            $result['users_error'] = $e->getMessage();
+        }
+
+        // Raw attendance log
+        try {
+            $connect = @fsockopen($this->ip, $this->port, $errno, $errstr, 20);
+            if ($connect) {
+                $soap = '<?xml version="1.0"?><GetAttLog><ArgComKey>' . $this->key . '</ArgComKey><Arg></Arg></GetAttLog>';
+                $nl   = "\r\n";
+                fputs($connect, "POST /iWsService HTTP/1.0" . $nl);
+                fputs($connect, "Content-Type: text/xml" . $nl);
+                fputs($connect, "Content-Length: " . strlen($soap) . $nl . $nl);
+                fputs($connect, $soap . $nl);
+                $buf = '';
+                while (!feof($connect)) $buf .= fgets($connect, 1024);
+                fclose($connect);
+
+                $result['attlog_xml_sample'] = substr($buf, 0, 2000);
+
+                preg_match_all('/<Row[^>]*>(.*?)<\/Row>/s', $buf, $rows);
+                // Return first 20 rows only
+                foreach (array_slice($rows[1] ?? [], 0, 20) as $row) {
+                    preg_match_all('/<(\w+)>(.*?)<\/\1>/s', $row, $fields, PREG_SET_ORDER);
+                    $parsed = [];
+                    foreach ($fields as $f) {
+                        $parsed[$f[1]] = trim(html_entity_decode($f[2]));
+                    }
+                    $result['attlog_raw'][] = $parsed;
+                }
+            }
+        } catch (\Exception $e) {
+            $result['attlog_error'] = $e->getMessage();
+        }
+
+        return $result;
+    }
+
     public function getLogs(string $tgl_awal = '', string $tgl_akhir = ''): array
     {
+        // $users keyed by internal machine PIN, value = ['name' => ..., 'pin2' => actual employee PIN]
         try {
             $users = $this->getUsers();
         } catch (\Exception $e) {
-            // Continue with empty users array if unable to fetch
             \Illuminate\Support\Facades\Log::warning("Could not fetch users from X601: " . $e->getMessage());
             $users = [];
+        }
+
+        // Build lookup maps
+        $nameByInternalPin = [];
+        $pin2ByInternalPin = [];
+        foreach ($users as $internalPin => $info) {
+            $nameByInternalPin[$internalPin] = is_array($info) ? $info['name'] : $info;
+            $pin2ByInternalPin[$internalPin] = is_array($info) ? $info['pin2'] : $internalPin;
         }
 
         $logs = [];
@@ -88,6 +183,7 @@ class X601Service
 
         // Log raw response for debugging
         \Illuminate\Support\Facades\Log::debug("X601 GetAttLog Response length: " . strlen($buffer));
+        \Illuminate\Support\Facades\Log::debug("X601 GetAttLog XML sample (first 3000): " . substr($buffer, 0, 3000));
 
         // Check if we got a valid response
         if (strpos($buffer, '<GetAttLogResponse>') === false) {
@@ -104,13 +200,26 @@ class X601Service
         \Illuminate\Support\Facades\Log::info("Found " . count($rows[1]) . " rows from X601");
 
         $rawLogs = [];
-        foreach ($rows[1] as $row) {
+        foreach ($rows[1] as $rowIndex => $row) {
             preg_match('/<PIN>(.*?)<\/PIN>/', $row, $pin);
             preg_match('/<DateTime>(.*?)<\/DateTime>/', $row, $time);
 
-            $PIN = $pin[1] ?? '';
-            $DateTime = $time[1] ?? '';
+            $PIN = trim(html_entity_decode($pin[1] ?? ''));
+            $DateTime = trim($time[1] ?? '');
+
+            // Log first 20 rows for PIN diagnosis
+            if ($rowIndex < 20) {
+                // Capture all fields in row
+                preg_match_all('/<(\w+)>(.*?)<\/\1>/s', $row, $allFields, PREG_SET_ORDER);
+                $fieldStr = implode(', ', array_map(fn($f) => $f[1].'='.trim($f[2]), $allFields));
+                \Illuminate\Support\Facades\Log::debug("X601 AttLog Row[{$rowIndex}]: {$fieldStr}");
+            }
+
             if (!$PIN || !$DateTime) continue;
+
+            // Parse Status field: 0=check-in, 1=check-out (ZKTeco standard)
+            preg_match('/<Status>(.*?)<\/Status>/', $row, $statusMatch);
+            $statusVal = trim($statusMatch[1] ?? '0');
 
             try {
                 $tanggal = date('Y-m-d', strtotime($DateTime));
@@ -125,19 +234,29 @@ class X601Service
             }
 
             if (!isset($rawLogs[$PIN])) $rawLogs[$PIN] = [];
-            if (!isset($rawLogs[$PIN][$tanggal])) $rawLogs[$PIN][$tanggal] = [];
-            $rawLogs[$PIN][$tanggal][] = $jam;
+            if (!isset($rawLogs[$PIN][$tanggal])) $rawLogs[$PIN][$tanggal] = ['in' => [], 'out' => []];
+            // Status 1 = checkout tap, anything else = check-in tap
+            if ($statusVal === '1') {
+                $rawLogs[$PIN][$tanggal]['out'][] = $jam;
+            } else {
+                $rawLogs[$PIN][$tanggal]['in'][] = $jam;
+            }
         }
 
         $finalLogs = [];
         foreach ($rawLogs as $pin => $dates) {
-            foreach ($dates as $tgl => $jam_list) {
-                sort($jam_list);
-                $checkin  = $jam_list[0];
-                // Jika hanya satu tap ATAU semua entry memiliki timestamp sama
-                // (tap dobel/ghost), checkout dikosongkan — belum pulang
-                $rawCheckout = count($jam_list) > 1 ? end($jam_list) : '';
-                $checkout    = ($rawCheckout && $rawCheckout !== $checkin) ? $rawCheckout : '';
+            foreach ($dates as $tgl => $taps) {
+                $inTaps  = $taps['in'];
+                $outTaps = $taps['out'];
+
+                // Gabungkan semua tap, ambil tap pertama sebagai check_in dan tap terakhir sebagai check_out
+                $allTaps = array_merge($inTaps, $outTaps);
+                sort($allTaps);
+
+                $checkin  = $allTaps[0] ?? '';
+                // check_out = tap paling terakhir, hanya diisi jika berbeda dengan check_in
+                $lastTap  = !empty($allTaps) ? end($allTaps) : '';
+                $checkout = ($lastTap && $lastTap !== $checkin) ? $lastTap : '';
 
                 $jam_masuk  = "07:30:00";
                 $jam_pulang = "16:30:00";
@@ -159,9 +278,13 @@ class X601Service
                     $status    = $checkin > $jam_masuk ? "Terlambat" : "Belum Pulang";
                 }
 
+                // Gunakan internal PIN langsung sebagai identifier employee
+                $actualPin    = $pin;
+                $namaKaryawan = $nameByInternalPin[$pin] ?? 'Tidak Diketahui';
+
                 $finalLogs[] = [
-                    'pin'       => $pin,
-                    'nama'      => $users[$pin] ?? 'Tidak Diketahui',
+                    'pin'       => $actualPin,
+                    'nama'      => $namaKaryawan,
                     'tanggal'   => $tgl,
                     'checkin'   => $checkin,
                     'checkout'  => $checkout,

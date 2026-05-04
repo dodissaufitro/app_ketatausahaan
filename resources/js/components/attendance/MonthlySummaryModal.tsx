@@ -28,6 +28,7 @@ import {
   TrendingUp,
   FileSpreadsheet,
   FileText,
+  Search,
 } from 'lucide-react';
 
 interface MonthlySummaryData {
@@ -40,9 +41,9 @@ interface MonthlySummaryData {
 }
 
 interface EmployeeSummary {
+  id: number;
   employee_id: string;
   employee_name: string;
-  machine_name: string;
   department: string | null;
   position: string | null;
   stats: {
@@ -66,6 +67,7 @@ interface MonthlySummaryModalProps {
 export function MonthlySummaryModal({ isOpen, onClose }: MonthlySummaryModalProps) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [nameFilter, setNameFilter] = useState('');
   const [summary, setSummary] = useState<MonthlySummaryData | null>(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -157,20 +159,11 @@ export function MonthlySummaryModal({ isOpen, onClose }: MonthlySummaryModalProp
 
     setDownloadingEmployee(selectedEmployee.employee_id);
     try {
-      // Find employee by employee_id to get database ID
-      const employeeResponse = await axios.get('/api/employees');
-      const employees = employeeResponse.data.data || employeeResponse.data || [];
-      const employeeData = employees.find((emp: any) => emp.employee_id === selectedEmployee.employee_id);
-
-      if (!employeeData) {
-        throw new Error('Karyawan tidak ditemukan');
-      }
-
       const response = await axios.get('/api/attendances/export-excel', {
         params: {
           start_date: customStartDate,
           end_date: customEndDate,
-          employee_id: employeeData.id,
+          employee_id: selectedEmployee.id,
         },
         responseType: 'blob',
       });
@@ -182,7 +175,7 @@ export function MonthlySummaryModal({ isOpen, onClose }: MonthlySummaryModalProp
       
       // Extract filename from content-disposition header or use default
       const contentDisposition = response.headers['content-disposition'];
-      let filename = `Laporan_Kehadiran_${selectedEmployee.employee_id}_${customStartDate}_${customEndDate}.xlsx`;
+      let filename = `Laporan_Kehadiran_${selectedEmployee.employee_name.replace(/ /g, '_')}_${customStartDate}_${customEndDate}.xlsx`;
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
         if (filenameMatch && filenameMatch[1]) {
@@ -198,7 +191,7 @@ export function MonthlySummaryModal({ isOpen, onClose }: MonthlySummaryModalProp
 
       toast({
         title: 'Berhasil',
-        description: `Laporan kehadiran ${selectedEmployee.machine_name || selectedEmployee.employee_name} berhasil diunduh`,
+        description: `Laporan kehadiran ${selectedEmployee.employee_name} berhasil diunduh`,
       });
 
       // Close dialog and reset
@@ -270,6 +263,18 @@ export function MonthlySummaryModal({ isOpen, onClose }: MonthlySummaryModalProp
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex-1">
+            <Label>Filter Nama</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Cari nama karyawan..."
+                value={nameFilter}
+                onChange={(e) => setNameFilter(e.target.value)}
+                className="pl-9"
+              />
+            </div>
           </div>
           <div className="flex items-end gap-2">
             <Button onClick={fetchSummary} disabled={loading}>
@@ -369,12 +374,19 @@ export function MonthlySummaryModal({ isOpen, onClose }: MonthlySummaryModalProp
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Detail Karyawan</h3>
             <div className="grid gap-4">
-              {summary.employees.map((employee) => (
+              {summary.employees
+                .filter((emp) =>
+                  nameFilter.trim() === '' ||
+                  emp.employee_name
+                    .toLowerCase()
+                    .includes(nameFilter.toLowerCase())
+                )
+                .map((employee) => (
                 <Card key={employee.employee_id}>
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
                       <div>
-                        <CardTitle className="text-base">{employee.machine_name || employee.employee_name}</CardTitle>
+                        <CardTitle className="text-base">{employee.employee_name}</CardTitle>
                         <p className="text-sm text-muted-foreground">
                           ID: {employee.employee_id}
                           {employee.department && ` • ${employee.department}`}
@@ -446,7 +458,7 @@ export function MonthlySummaryModal({ isOpen, onClose }: MonthlySummaryModalProp
         <DialogHeader>
           <DialogTitle>Pilih Rentang Waktu</DialogTitle>
           <p className="text-sm text-muted-foreground">
-            {selectedEmployee && `Download laporan kehadiran ${selectedEmployee.machine_name || selectedEmployee.employee_name}`}
+            {selectedEmployee && `Download laporan kehadiran ${selectedEmployee.employee_name}`}
           </p>
         </DialogHeader>
 

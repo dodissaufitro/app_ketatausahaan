@@ -21,8 +21,8 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const success = await login(email, password);
-      if (success) {
+      const result = await login(email, password);
+      if (result.success) {
         toast({
           title: 'Login Berhasil',
           description: 'Selamat datang di HRIS Dashboard',
@@ -31,14 +31,14 @@ export default function Login() {
       } else {
         toast({
           title: 'Login Gagal',
-          description: 'Email atau password salah',
+          description: result.message || 'Email atau password salah.',
           variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Terjadi kesalahan saat login',
+        description: 'Terjadi kesalahan saat login.',
         variant: 'destructive',
       });
     } finally {

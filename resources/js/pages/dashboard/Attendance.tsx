@@ -51,6 +51,10 @@ import {
   Stethoscope,
   Baby,
   Heart,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 
 // ====== CONSTANT JAM KANTOR ======
@@ -111,6 +115,10 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [syncModalOpen, setSyncModalOpen] = useState(false);
   const [monthlySummaryModalOpen, setMonthlySummaryModalOpen] = useState(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   
   // Export state
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -157,6 +165,11 @@ export default function AttendancePage() {
   useEffect(() => {
     fetchAttendances();
   }, [filterDate, filterStatus, filterSource]);
+
+  // Reset ke halaman 1 saat filter/pencarian berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus, filterDate, filterSource, itemsPerPage]);
 
   // ====== FETCH EMPLOYEES ======
   const fetchEmployees = async () => {
@@ -269,6 +282,12 @@ export default function AttendancePage() {
       record.employeeId.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredAttendance.length / itemsPerPage));
+  const paginatedAttendance = filteredAttendance.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const stats = {
     present: processedAttendance.filter((a) => a.status === 'present').length,
@@ -628,7 +647,6 @@ export default function AttendancePage() {
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead>Karyawan</TableHead>
-                  <TableHead>ID</TableHead>
                   <TableHead>Tanggal</TableHead>
                   <TableHead>Check In</TableHead>
                   <TableHead>Check Out</TableHead>
@@ -640,7 +658,7 @@ export default function AttendancePage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       <div className="flex justify-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                       </div>
@@ -648,12 +666,12 @@ export default function AttendancePage() {
                   </TableRow>
                 ) : filteredAttendance.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Tidak ada data kehadiran
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredAttendance.map((record) => (
+                  paginatedAttendance.map((record) => (
                     <TableRow key={record.id} className="hover:bg-muted/50">
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -665,7 +683,6 @@ export default function AttendancePage() {
                           <span className="font-medium">{record.employeeName}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="font-mono text-sm">{record.employeeId}</TableCell>
                       <TableCell>{record.date}</TableCell>
                       <TableCell>
                         <span className={record.checkIn > JAM_MASUK ? 'text-warning font-semibold' : ''}>
@@ -686,6 +703,92 @@ export default function AttendancePage() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination */}
+          {!loading && filteredAttendance.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Baris per halaman:</span>
+                <Select
+                  value={itemsPerPage.toString()}
+                  onValueChange={(v) => setItemsPerPage(Number(v))}
+                >
+                  <SelectTrigger className="h-8 w-16">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span>
+                  {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredAttendance.length)} dari {filteredAttendance.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                  .reduce<(number | '...')[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...');
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((item, idx) =>
+                    item === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="px-2 text-muted-foreground">…</span>
+                    ) : (
+                      <Button
+                        key={item}
+                        variant={currentPage === item ? 'default' : 'outline'}
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setCurrentPage(item as number)}
+                      >
+                        {item}
+                      </Button>
+                    )
+                  )}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -126,8 +126,10 @@ Route::prefix('api')->group(function () {
             Route::delete('/attendances/{attendance}', [AttendanceController::class, 'destroy']);
             Route::post('/attendances/sync-x601/manual', [AttendanceController::class, 'syncFromX601']);
             Route::post('/attendances/sync-x601/comprehensive', [AttendanceController::class, 'comprehensiveSyncFromX601']);
+            Route::post('/attendances/sync-x601/checkout', [AttendanceController::class, 'syncCheckoutFromX601']);
             Route::post('/attendances/sync-x601/users', [AttendanceController::class, 'syncUsersFromX601']);
             Route::post('/attendances/mark-absent', [AttendanceController::class, 'markAbsent']);
+            Route::get('/attendances/debug-x601/raw', [AttendanceController::class, 'debugRawX601']);
         });
 
         // Leave Routes - allow manage_leaves, view_own_leave, submit_leave_request permissions

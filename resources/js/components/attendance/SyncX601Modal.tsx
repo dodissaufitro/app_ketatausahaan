@@ -27,14 +27,42 @@ interface SyncResult {
 
 export function SyncX601Modal({ isOpen, onClose, onSuccess }: SyncX601ModalProps) {
   const [loading, setLoading] = useState(false);
+  const [loadingCheckout, setLoadingCheckout] = useState(false);
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [employeeId, setEmployeeId] = useState<string>('');
-  const [ip, setIp] = useState<string>('10.1.7.28');
+  const [ip, setIp] = useState<string>('10.88.125.230');
   const [key, setKey] = useState<string>('0');
   const [port, setPort] = useState<number>(80);
   const [result, setResult] = useState<SyncResult | null>(null);
   const { toast } = useToast();
+
+  const handleSyncCheckout = async () => {
+    try {
+      setLoadingCheckout(true);
+      const today = new Date().toISOString().split('T')[0];
+      const response = await axios.post('/api/attendances/sync-x601/checkout', {
+        date: startDate || today,
+        ip: ip || '10.88.125.230',
+        key: key || '0',
+        port: port || 80,
+      });
+      const data = response.data;
+      toast({
+        title: 'Sync Checkout Berhasil',
+        description: `${data.updated} data checkout berhasil diperbarui dari mesin X601`,
+      });
+      onSuccess();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Gagal sync checkout dari mesin X601',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingCheckout(false);
+    }
+  };
 
   const handleSync = async () => {
     try {
@@ -45,7 +73,7 @@ export function SyncX601Modal({ isOpen, onClose, onSuccess }: SyncX601ModalProps
         start_date: startDate || null,
         end_date: endDate || null,
         employee_id: employeeId || null,
-        ip: ip || '10.1.7.28',
+        ip: ip || '10.88.125.230',
         key: key || '0',
         port: port || 80,
       });
@@ -212,15 +240,26 @@ export function SyncX601Modal({ isOpen, onClose, onSuccess }: SyncX601ModalProps
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={loading}>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button variant="outline" onClick={handleClose} disabled={loading || loadingCheckout}>
             {result ? 'Tutup' : 'Batal'}
           </Button>
           {!result && (
-            <Button onClick={handleSync} disabled={loading}>
-              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Sinkronisasi
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                onClick={handleSyncCheckout}
+                disabled={loading || loadingCheckout}
+                title={`Hanya update check_out untuk tanggal ${startDate || 'hari ini'} tanpa menimpa check_in`}
+              >
+                {loadingCheckout && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Sync Checkout
+              </Button>
+              <Button onClick={handleSync} disabled={loading || loadingCheckout}>
+                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Sinkronisasi
+              </Button>
+            </>
           )}
         </DialogFooter>
       </DialogContent>

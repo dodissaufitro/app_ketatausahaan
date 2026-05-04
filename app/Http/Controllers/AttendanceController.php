@@ -28,121 +28,70 @@ class AttendanceController extends Controller
         // Determine the date to display (default to today)
         $date = $request->has('date') ? $request->date : now()->format('Y-m-d');
 
-        // If user only has view_own_attendance, filter to their own employee record
-        if (!$canManageAll) {
-            $ownEmployee = $user->employee ?? \App\Models\Employee::where('email', $user->email)->first();
-            if (!$ownEmployee) {
-                return response()->json([]);
-            }
-            $employees = collect([$ownEmployee]);
-        } else {
-            // Get all active employees
-            $employees = Employee::where('status', 'active')->get();
-        }
-
-        // Get attendance records for the specified date
+        // Build attendance query - data source is attendances table
         $attendanceQuery = Attendance::with('employee')
             ->whereDate('date', $date);
 
         // Filter by source (if specified)
-        $sourceFilter = $request->get('source', 'x601'); // default to x601
+        $sourceFilter = $request->get('source', 'x601');
         if ($sourceFilter && $sourceFilter !== 'all' && in_array($sourceFilter, ['manual', 'x601'])) {
             $attendanceQuery->where('source', $sourceFilter);
         }
 
-        $attendances = $attendanceQuery->get()->keyBy('employee_id');
+        // If user only has view_own_attendance, filter to their own record
+        if (!$canManageAll) {
+            $ownEmployee = $user->employee ?? Employee::where('email', $user->email)->first();
+            if (!$ownEmployee) {
+                return response()->json([]);
+            }
+            $attendanceQuery->where('employee_id', $ownEmployee->id);
+        }
 
-        // Get approved leaves for this date
+        $attendances = $attendanceQuery->get();
+
+        // Get approved leaves for this date (keyed by employee primary key)
+        $employeeIds = $attendances->pluck('employee_id')->unique();
         $approvedLeaves = Leave::where('status', 'approved')
             ->whereDate('start_date', '<=', $date)
             ->whereDate('end_date', '>=', $date)
+            ->whereIn('employee_id', $employeeIds)
             ->get()
             ->keyBy('employee_id');
 
-        // Build the result with all employees
-        $transformed = $employees->map(function ($employee) use ($attendances, $approvedLeaves, $date, $sourceFilter) {
-            $attendance = $attendances->get($employee->id);
-            $leave = $approvedLeaves->get($employee->id);
+        // Build result from attendances table
+        $transformed = $attendances->map(function ($attendance) use ($approvedLeaves, $date) {
+            $employee = $attendance->employee;
+            $leave    = $approvedLeaves->get($attendance->employee_id);
 
-            if ($attendance) {
-                // Employee has attendance record
-                $status = $attendance->status;
-                $leaveType = null;
-
-                // Override status if employee has approved leave
-                if ($leave) {
-                    $status = $this->getLeaveStatus($leave->type);
-                    $leaveType = $leave->type;
-                }
-
-                return [
-                    'id' => (string) $attendance->id,
-                    'employeeId' => $employee->employee_id ?? '',
-                    'employeeName' => $attendance->machine_name ?? $employee->name ?? '',
-                    'date' => $attendance->date->format('Y-m-d'),
-                    'checkIn' => $attendance->check_in ?? '',
-                    'checkOut' => $attendance->check_out ?? '',
-                    'status' => $status,
-                    'leaveType' => $leaveType,
-                    'workHours' => (float) $attendance->work_hours,
-                    'source' => $attendance->source ?? 'manual',
-                    'include' => true, // always include if has attendance
-                ];
-            } else {
-                // Employee does not have attendance record
-                // Check if employee has approved leave
-                if ($leave) {
-                    return [
-                        'id' => null,
-                        'employeeId' => $employee->employee_id ?? '',
-                        'employeeName' => $employee->name ?? '',
-                        'date' => $date,
-                        'checkIn' => '',
-                        'checkOut' => '',
-                        'status' => $this->getLeaveStatus($leave->type),
-                        'leaveType' => $leave->type,
-                        'workHours' => 0,
-                        'source' => 'leave',
-                        'include' => true,
-                    ];
-                }
-
-                // No attendance and no leave - mark as absent
-                // Only include absent employees if showing x601 or all
-                $includeAbsent = ($sourceFilter === 'all' || $sourceFilter === 'x601');
-
-                return [
-                    'id' => null,
-                    'employeeId' => $employee->employee_id ?? '',
-                    'employeeName' => $employee->name ?? '',
-                    'date' => $date,
-                    'checkIn' => '',
-                    'checkOut' => '',
-                    'status' => 'absent',
-                    'leaveType' => null,
-                    'workHours' => 0,
-                    'source' => 'system',
-                    'include' => $includeAbsent,
-                ];
+            $status    = $attendance->status;
+            $leaveType = null;
+            if ($leave) {
+                $status    = $this->getLeaveStatus($leave->type);
+                $leaveType = $leave->type;
             }
+
+            return [
+                'id'           => (string) $attendance->employee_id,
+                'employeeId'   => $employee->employee_id ?? (string) $attendance->employee_id,
+                'employeeName' => $employee->name ?? $attendance->machine_name ?? '',
+                'date'         => $attendance->date->format('Y-m-d'),
+                'checkIn'      => $attendance->check_in ?? '',
+                'checkOut'     => $attendance->check_out ?? '',
+                'status'       => $status,
+                'leaveType'    => $leaveType,
+                'workHours'    => (float) $attendance->work_hours,
+                'source'       => $attendance->source ?? 'manual',
+            ];
         });
 
-        // Filter out records that should not be included
-        $transformed = $transformed->filter(function ($item) {
-            return $item['include'] ?? true;
-        })->map(function ($item) {
-            unset($item['include']);
-            return $item;
-        });
-
-        // Apply status filter on the final result
+        // Apply status filter
         if ($request->has('status') && $request->status !== 'all') {
             $transformed = $transformed->filter(function ($item) use ($request) {
                 return $item['status'] === $request->status;
             })->values();
         }
 
-        // Apply employee_id filter on the final result
+        // Apply employee_id filter
         if ($request->has('employee_id')) {
             $transformed = $transformed->filter(function ($item) use ($request) {
                 return $item['employeeId'] === $request->employee_id;
@@ -173,7 +122,7 @@ class AttendanceController extends Controller
      */
     public function x601Dashboard(Request $request)
     {
-        $IP = $request->get('ip', '10.1.7.28');
+        $IP = $request->get('ip', '10.88.125.230');
         $Key = $request->get('key', '0');
         $tgl_awal = $request->get('tgl_awal', '');
         $tgl_akhir = $request->get('tgl_akhir', '');
@@ -191,7 +140,7 @@ class AttendanceController extends Controller
             foreach ($logs as $row) {
                 $rows[] = [
                     'pin' => $row['pin'] ?? null,
-                    'nama' => $row['nama'] ?? ($users[$row['pin']] ?? 'Tidak Diketahui'),
+                    'nama' => $row['nama'] ?? 'Tidak Diketahui',
                     'tanggal' => $row['tanggal'] ?? null,
                     'checkin' => $row['checkin'] ?? null,
                     'checkout' => $row['checkout'] ?? null,
@@ -291,7 +240,7 @@ class AttendanceController extends Controller
             'port' => 'nullable|integer',
         ]);
 
-        $ip = $validated['ip'] ?? '10.1.7.28';
+        $ip = $validated['ip'] ?? '10.88.125.230';
         $key = $validated['key'] ?? config('services.x601.api_key', '0');
         $port = $validated['port'] ?? 80;
 
@@ -312,6 +261,29 @@ class AttendanceController extends Controller
     }
 
     /**
+     * Sync ONLY checkout data from X601 machine for a given date.
+     * Only updates check_out on existing records — does not create new records.
+     */
+    public function syncCheckoutFromX601(Request $request, X601AttendanceService $service)
+    {
+        $validated = $request->validate([
+            'date' => 'nullable|date_format:Y-m-d',
+            'ip'   => 'nullable|string',
+            'key'  => 'nullable|string',
+            'port' => 'nullable|integer',
+        ]);
+
+        $date = $validated['date'] ?? now()->format('Y-m-d');
+        $ip   = $validated['ip'] ?? '10.88.125.230';
+        $key  = $validated['key'] ?? config('services.x601.api_key', '0');
+        $port = $validated['port'] ?? 80;
+
+        $result = $service->syncCheckoutOnly($date, $ip, $key, $port);
+
+        return response()->json($result);
+    }
+
+    /**
      * Fetch attendance data directly from X601 machine (preview before sync)
      */
     public function fetchFromX601(Request $request, X601AttendanceService $service)
@@ -324,7 +296,7 @@ class AttendanceController extends Controller
             'port' => 'nullable|integer',
         ]);
 
-        $ip = $validated['ip'] ?? '10.1.7.28';
+        $ip = $validated['ip'] ?? '10.88.125.230';
         $key = $validated['key'] ?? config('services.x601.api_key', '0');
         $port = $validated['port'] ?? 80;
 
@@ -344,7 +316,7 @@ class AttendanceController extends Controller
      */
     public function connectX601(Request $request)
     {
-        $ipParam = $request->get('ip', '10.1.7.28');
+        $ipParam = $request->get('ip', '10.88.125.230');
         $Key = $request->get('key', '0');
         $tgl_awal = $request->get('tgl_awal', '');
         $tgl_akhir = $request->get('tgl_akhir', '');
@@ -614,7 +586,7 @@ class AttendanceController extends Controller
             'port' => 'nullable|integer',
         ]);
 
-        $ip = $validated['ip'] ?? '10.1.7.28';
+        $ip = $validated['ip'] ?? '10.88.125.230';
         $key = $validated['key'] ?? config('services.x601.api_key', '0');
         $port = $validated['port'] ?? 80;
 
@@ -734,7 +706,7 @@ class AttendanceController extends Controller
             'port' => 'nullable|integer',
         ]);
 
-        $ip = $validated['ip'] ?? '10.1.7.28';
+        $ip = $validated['ip'] ?? '10.88.125.230';
         $key = $validated['key'] ?? '0';
         $port = $validated['port'] ?? 80;
 
@@ -742,12 +714,12 @@ class AttendanceController extends Controller
             $x601Service = new X601Service($ip, $key, $port);
             $users = $x601Service->getUsers();
 
-            // Convert to array of objects for frontend
+            // Convert to array of objects for frontend, using pin2 as the actual employee PIN
             $userList = [];
-            foreach ($users as $pin => $name) {
+            foreach ($users as $internalPin => $info) {
                 $userList[] = [
-                    'pin' => $pin,
-                    'name' => $name,
+                    'pin'  => is_array($info) ? $info['pin2'] : $internalPin,
+                    'name' => is_array($info) ? $info['name'] : $info,
                 ];
             }
 
@@ -770,6 +742,46 @@ class AttendanceController extends Controller
                     'port' => $port,
                     'key' => $key,
                 ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Debug: returns raw XML fields parsed per row from machine, to diagnose PIN mismatches.
+     */
+    public function debugRawX601(Request $request)
+    {
+        $validated = $request->validate([
+            'ip'   => 'nullable|string',
+            'key'  => 'nullable|string',
+            'port' => 'nullable|integer',
+        ]);
+
+        $ip   = $validated['ip']   ?? config('services.x601.ip', '10.88.125.230');
+        $key  = $validated['key']  ?? config('services.x601.api_key', '0');
+        $port = $validated['port'] ?? 80;
+
+        try {
+            $x601Service = new X601Service($ip, $key, $port);
+            $raw = $x601Service->getRawDebug();
+
+            return response()->json([
+                'success'    => true,
+                'ip'         => $ip,
+                'port'       => $port,
+                'users_count' => count($raw['users_raw']),
+                'attlog_count_sample' => count($raw['attlog_raw']),
+                'users_raw'  => $raw['users_raw'],
+                'attlog_raw' => $raw['attlog_raw'],
+                'users_xml_sample'  => $raw['users_xml_sample'],
+                'attlog_xml_sample' => $raw['attlog_xml_sample'],
+                'users_error'  => $raw['users_error'] ?? null,
+                'attlog_error' => $raw['attlog_error'] ?? null,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }

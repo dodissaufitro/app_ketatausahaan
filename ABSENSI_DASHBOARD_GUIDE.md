@@ -14,7 +14,7 @@
 **Cara Mengakses**:
 
 ```
-http://localhost/api/x601-dashboard?ip=10.1.7.28&key=0&tgl_awal=2026-02-27&tgl_akhir=2026-03-25
+http://localhost/api/x601-dashboard?ip=10.88.125.230&key=0&tgl_awal=2026-02-27&tgl_akhir=2026-03-25
 ```
 
 ### 2️⃣ **HTML Standalone** (Pure HTML/PHP)
@@ -40,7 +40,7 @@ http://localhost/absensi_karyawan.html
     - Gradient background modern
 
 2. **Filter Form**
-    - IP Address input (default 10.1.7.28)
+    - IP Address input (default 10.88.125.230)
     - Comm Key input (default 0)
     - Date range picker (Dari - Hingga)
     - Search button
@@ -154,7 +154,7 @@ $jam_pulang = "16:30:00";  // Default pulang
 http://localhost/api/x601-dashboard
 
 # With parameters
-http://localhost/api/x601-dashboard?ip=10.1.7.28&key=0&tgl_awal=2026-02-27&tgl_akhir=2026-03-25
+http://localhost/api/x601-dashboard?ip=10.88.125.230&key=0&tgl_awal=2026-02-27&tgl_akhir=2026-03-25
 ```
 
 ### Test HTML Version:
@@ -164,7 +164,7 @@ http://localhost/api/x601-dashboard?ip=10.1.7.28&key=0&tgl_awal=2026-02-27&tgl_a
 http://localhost/absensi_karyawan.html
 
 # With parameters
-http://localhost/absensi_karyawan.html?ip=10.1.7.28&key=0
+http://localhost/absensi_karyawan.html?ip=10.88.125.230&key=0
 ```
 
 ## 🚀 Integration Notes

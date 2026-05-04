@@ -22,7 +22,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isRefreshing: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<{ success: boolean; message?: string }> => {
     try {
       const response = await axios.post('/login', {
         email,
@@ -78,13 +78,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (response.data.user) {
         setUser(response.data.user);
-        return true;
+        return { success: true };
       }
       
-      return false;
+      return { success: false, message: 'Email atau password salah.' };
     } catch (error: any) {
       console.error('Login error:', error);
-      return false;
+      // Ambil pesan error dari server (termasuk pesan block)
+      const serverMessage =
+        error?.response?.data?.errors?.email?.[0] ||
+        error?.response?.data?.message ||
+        'Terjadi kesalahan saat login.';
+      return { success: false, message: serverMessage };
     }
   };
 
